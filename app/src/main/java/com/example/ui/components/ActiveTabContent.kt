@@ -30,6 +30,9 @@ fun ActiveTabContent(
     lastExportedZipFile: File?,
     lastSavedPublicLocation: String?,
     context: Context,
+    isDesktopMode: Boolean = false,
+    selectedProductForDetail: ProductItem? = null,
+    selectedReviewForView: ReviewItem? = null,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -53,7 +56,16 @@ fun ActiveTabContent(
                     onDeleteProduct = { viewModel.deleteProduct(it) },
                     onNavigateToSmartAdd = { viewModel.setActiveTab(AppNavTab.SMART_ADD) },
                     onNavigateToAddProduct = { viewModel.setActiveTab(AppNavTab.ADD_PRODUCT) },
-                    onNavigateToCompare = { viewModel.setActiveTab(AppNavTab.COMPARE) }
+                    onNavigateToCompare = { viewModel.setActiveTab(AppNavTab.COMPARE) },
+                    selectedProduct = if (isDesktopMode) selectedProductForDetail else null,
+                    isTabletTwoPane = isDesktopMode,
+                    onDismissDetail = { viewModel.showProductDetail(null) },
+                    onAddSpec = { viewModel.openAddSpecDialog(it) },
+                    onAddReview = { viewModel.openAddReviewDialog(it) },
+                    onReviewClick = { viewModel.showReviewDetail(it) },
+                    onEditReview = { viewModel.openEditReviewDialog(it) },
+                    onDeleteSpec = { viewModel.deleteSpecification(it.id) },
+                    onSaveSpec = { viewModel.saveSpecification(it) }
                 )
             }
             AppNavTab.COMPARE -> {
@@ -124,7 +136,10 @@ fun ActiveTabContent(
                     onProductClick = { viewModel.showProductDetail(it) },
                     onImportFolder = { uri -> viewModel.startFolderTreeImport(context, uri) },
                     onImportZip = { uri -> viewModel.startZipImport(context, uri) },
-                    onImportHtml = { uri -> viewModel.startSingleHtmlImport(context, uri) }
+                    onImportHtml = { uri -> viewModel.startSingleHtmlImport(context, uri) },
+                    selectedReview = if (isDesktopMode) selectedReviewForView else null,
+                    isTabletTwoPane = isDesktopMode,
+                    onCloseReview = { viewModel.showReviewDetail(null) }
                 )
             }
             AppNavTab.DATA_BACKUP -> {

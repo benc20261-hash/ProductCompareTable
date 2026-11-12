@@ -154,7 +154,13 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                 if (isDesktopMode) {
                     DesktopNavbar(
                         activeTab = activeTab,
-                        onTabSelected = { viewModel.setActiveTab(it) },
+                        onTabSelected = { tab ->
+                            // Bug fix: Clear selected product/review detail when switching away from their host tabs,
+                            // so the detail modal/pane doesn't surface on top of the new tab.
+                            if (tab != AppNavTab.CATALOG) viewModel.showProductDetail(null)
+                            if (tab != AppNavTab.REVIEWS) viewModel.showReviewDetail(null)
+                            viewModel.setActiveTab(tab)
+                        },
                         productCount = products.size,
                         compareCount = comparedProductIds.size,
                         reviewCount = reviews.size,
@@ -332,7 +338,11 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                         color = if (isCompareActive) Color(0xFF4F46E5) else Color.White,
                         border = if (!isCompareActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
                         modifier = Modifier
-                            .clickable { viewModel.setActiveTab(AppNavTab.COMPARE) }
+                            .clickable {
+                                viewModel.showProductDetail(null)
+                                viewModel.showReviewDetail(null)
+                                viewModel.setActiveTab(AppNavTab.COMPARE)
+                            }
                             .testTag("top_nav_compare")
                     ) {
                         Row(
@@ -362,7 +372,11 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                         color = if (isSmartAddActive) Color(0xFF0F172A) else Color.White,
                         border = if (!isSmartAddActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
                         modifier = Modifier
-                            .clickable { viewModel.setActiveTab(AppNavTab.SMART_ADD) }
+                            .clickable {
+                                viewModel.showProductDetail(null)
+                                viewModel.showReviewDetail(null)
+                                viewModel.setActiveTab(AppNavTab.SMART_ADD)
+                            }
                             .testTag("top_nav_smart_add")
                     ) {
                         Row(
@@ -422,7 +436,10 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                         color = if (isReviewsActive) Color(0xFF4F46E5) else Color.White,
                         border = if (!isReviewsActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
                         modifier = Modifier
-                            .clickable { viewModel.setActiveTab(AppNavTab.REVIEWS) }
+                            .clickable {
+                                viewModel.showProductDetail(null)
+                                viewModel.setActiveTab(AppNavTab.REVIEWS)
+                            }
                             .testTag("top_nav_reviews")
                     ) {
                         Row(
@@ -452,7 +469,11 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                         color = if (isBackupActive) Color(0xFF0F172A) else Color.White,
                         border = if (!isBackupActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)) else null,
                         modifier = Modifier
-                            .clickable { viewModel.setActiveTab(AppNavTab.DATA_BACKUP) }
+                            .clickable {
+                                viewModel.showProductDetail(null)
+                                viewModel.showReviewDetail(null)
+                                viewModel.setActiveTab(AppNavTab.DATA_BACKUP)
+                            }
                             .testTag("top_nav_backup")
                     ) {
                         Row(
@@ -557,7 +578,10 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                     backupProgressText = backupProgressText,
                     lastExportedZipFile = lastExportedZipFile,
                     lastSavedPublicLocation = lastSavedPublicLocation,
-                    context = context
+                    context = context,
+                    isDesktopMode = isDesktopMode,
+                    selectedProductForDetail = selectedProductForDetail,
+                    selectedReviewForView = selectedReviewForView
                 )
 
                 // Status Banner Overlay
@@ -582,45 +606,46 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
             }
         }
     }
-}
 
     // Modals
-    selectedProductForDetail?.let { prod ->
-        val prodSpecs = specifications.filter { it.productId == prod.id || it.productTitle == prod.name }
-        val prodReviews = reviews.filter { prod.id in it.productIds || prod.name in it.productTitles }
-        val isCompared = prod.id in comparedProductIds
+    if (!isDesktopMode || activeTab != AppNavTab.CATALOG) {
+        selectedProductForDetail?.let { prod ->
+            val prodSpecs = specifications.filter { it.productId == prod.id || it.productTitle == prod.name }
+            val prodReviews = reviews.filter { prod.id in it.productIds || prod.name in it.productTitles }
+            val isCompared = prod.id in comparedProductIds
 
-        ProductDetailModal(
-            product = prod,
-            specifications = prodSpecs,
-            reviews = prodReviews,
-            isCompared = isCompared,
-            onToggleCompare = { viewModel.toggleCompare(prod.id) },
-            onEdit = {
-                viewModel.showProductDetail(null)
-                viewModel.showEditProduct(prod)
-            },
-            onDelete = {
-                viewModel.showProductDetail(null)
-                viewModel.deleteProduct(prod.id)
-            },
-            onAddSpec = { viewModel.openAddSpecDialog(prod) },
-            onAddReview = {
-                viewModel.showProductDetail(null)
-                viewModel.openAddReviewDialog(prod)
-            },
-            onReviewClick = {
-                viewModel.showProductDetail(null)
-                viewModel.showReviewDetail(it)
-            },
-            onEditReview = {
-                viewModel.showProductDetail(null)
-                viewModel.openEditReviewDialog(it)
-            },
-            onDeleteSpec = { spec -> viewModel.deleteSpecification(spec.id) },
-            onSaveSpec = { spec -> viewModel.saveSpecification(spec) },
-            onDismiss = { viewModel.showProductDetail(null) }
-        )
+            ProductDetailModal(
+                product = prod,
+                specifications = prodSpecs,
+                reviews = prodReviews,
+                isCompared = isCompared,
+                onToggleCompare = { viewModel.toggleCompare(prod.id) },
+                onEdit = {
+                    viewModel.showProductDetail(null)
+                    viewModel.showEditProduct(prod)
+                },
+                onDelete = {
+                    viewModel.showProductDetail(null)
+                    viewModel.deleteProduct(prod.id)
+                },
+                onAddSpec = { viewModel.openAddSpecDialog(prod) },
+                onAddReview = {
+                    viewModel.showProductDetail(null)
+                    viewModel.openAddReviewDialog(prod)
+                },
+                onReviewClick = {
+                    viewModel.showProductDetail(null)
+                    viewModel.showReviewDetail(it)
+                },
+                onEditReview = {
+                    viewModel.showProductDetail(null)
+                    viewModel.openEditReviewDialog(it)
+                },
+                onDeleteSpec = { spec -> viewModel.deleteSpecification(spec.id) },
+                onSaveSpec = { spec -> viewModel.saveSpecification(spec) },
+                onDismiss = { viewModel.showProductDetail(null) }
+            )
+        }
     }
 
     selectedProductForEdit?.let { prod ->
@@ -669,21 +694,23 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
         )
     }
 
-    selectedReviewForView?.let { rev ->
-        RichReviewViewer(
-            review = rev,
-            products = products,
-            onClose = { viewModel.showReviewDetail(null) },
-            onEditReview = { r ->
-                viewModel.showReviewDetail(null)
-                viewModel.openEditReviewDialog(r)
-            },
-            onDeleteReview = { id -> viewModel.deleteReview(id) },
-            onViewProduct = { prod ->
-                viewModel.showReviewDetail(null)
-                viewModel.showProductDetail(prod)
-            }
-        )
+    if (!isDesktopMode || activeTab != AppNavTab.REVIEWS) {
+        selectedReviewForView?.let { rev ->
+            RichReviewViewer(
+                review = rev,
+                products = products,
+                onClose = { viewModel.showReviewDetail(null) },
+                onEditReview = { r ->
+                    viewModel.showReviewDetail(null)
+                    viewModel.openEditReviewDialog(r)
+                },
+                onDeleteReview = { id -> viewModel.deleteReview(id) },
+                onViewProduct = { prod ->
+                    viewModel.showReviewDetail(null)
+                    viewModel.showProductDetail(prod)
+                }
+            )
+        }
     }
 
     selectedReviewForEdit?.let { rev ->
@@ -755,6 +782,7 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
             }
         }
     }
+}
 }
 }
 

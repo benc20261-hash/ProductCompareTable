@@ -40,6 +40,7 @@ import com.example.model.resolveImageModel
 import com.example.ui.components.ButtonText
 import com.example.ui.components.ComparisonTray
 import com.example.ui.components.DeviceGraphicPlaceholder
+import com.example.ui.components.DraggableTwoPaneLayout
 import com.example.ui.components.FormattedSpecHtml
 import com.example.ui.components.ProductDetailPaneContent
 import com.example.ui.components.SpecUnitBadge
@@ -114,444 +115,572 @@ fun CatalogScreen(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(com.example.ui.theme.AppColors.CanvasBackground)
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 280.dp),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = if (comparedIds.isNotEmpty()) {
-                com.example.ui.theme.AppSpacing.ScreenWithFloatingTrayPadding
-            } else {
-                com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable
-            },
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // 1. Filter products by tag / brand / product Card with integrated search
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                TagBrandProductFilter(
-                    label = "Filter products by tag / brand / product",
-                    tags = allTags,
-                    brands = allBrands,
-                    products = allProductNames,
-                    selectedTag = selectedTagOrBrand ?: "All",
-                    onSelectTag = { tag ->
-                        selectedTagOrBrand = if (tag.equals("All", ignoreCase = true)) "All" else tag
-                    },
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchChange,
-                    searchPlaceholder = "Search tags, brands, or products...",
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        val showTwoPane = isTabletTwoPane || maxWidth >= 768.dp
 
-            // 2. Actions Row: View Toggle, Smart Add Product, Add Product
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Grid / Table View Switcher
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFF1F5F9),
-                        modifier = Modifier.height(42.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            // Grid Button
-                            Surface(
-                                shape = RoundedCornerShape(7.dp),
-                                color = if (catalogViewMode == "grid") Color.White else Color.Transparent,
-                                shadowElevation = if (catalogViewMode == "grid") 1.dp else 0.dp,
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .clickable { catalogViewMode = "grid" }
-                                    .testTag("catalog_view_mode_grid")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.GridView,
-                                        contentDescription = "Grid view",
-                                        tint = if (catalogViewMode == "grid") Color(0xFF4F46E5) else Color(0xFF64748B),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        "Grid",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (catalogViewMode == "grid") FontWeight.Bold else FontWeight.Medium,
-                                        color = if (catalogViewMode == "grid") Color(0xFF0F172A) else Color(0xFF64748B)
-                                    )
-                                }
-                            }
+        if (showTwoPane && selectedProduct != null) {
+            val isCompared = selectedProduct.id in comparedIds
+            val prodSpecs = specifications.filter { it.productId == selectedProduct.id || it.productTitle == selectedProduct.name }
+            val prodReviews = reviews.filter { selectedProduct.id in it.productIds || selectedProduct.name in it.productTitles }
 
-                            // Table Button
-                            Surface(
-                                shape = RoundedCornerShape(7.dp),
-                                color = if (catalogViewMode == "table") Color.White else Color.Transparent,
-                                shadowElevation = if (catalogViewMode == "table") 1.dp else 0.dp,
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .clickable { catalogViewMode = "table" }
-                                    .testTag("catalog_view_mode_table")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.FormatListBulleted,
-                                        contentDescription = "Table view",
-                                        tint = if (catalogViewMode == "table") Color(0xFF4F46E5) else Color(0xFF64748B),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        "Table",
-                                        fontSize = 11.sp,
-                                        fontWeight = if (catalogViewMode == "table") FontWeight.Bold else FontWeight.Medium,
-                                        color = if (catalogViewMode == "table") Color(0xFF0F172A) else Color(0xFF64748B)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Smart Add Product Button
-                    Button(
-                        onClick = onNavigateToSmartAdd,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .testTag("catalog_smart_add_btn"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF0F172A),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = Color(0xFFFACC15),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        ButtonText(
-                            text = "Smart Add Product",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-
-                    // Add Product Button
-                    Button(
-                        onClick = onNavigateToAddProduct,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .testTag("catalog_add_product_btn"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4F46E5),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        ButtonText(
-                            text = "Add Product",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            // 4. Products List or Grid
-            if (filteredProducts.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SearchOff,
-                                contentDescription = null,
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Text(
-                                text = "No products matching \"${selectedTagOrBrand ?: searchQuery}\"",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF64748B)
-                            )
-                        }
-                    }
-                }
-            } else if (catalogViewMode == "table") {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    CatalogTableView(
-                        products = filteredProducts,
+            DraggableTwoPaneLayout(
+                modifier = Modifier.fillMaxSize(),
+                defaultSplitFraction = 0.45f,
+                minSplitFraction = 0.20f,
+                maxSplitFraction = 0.80f,
+                firstPane = { paneModifier ->
+                    CatalogListPane(
+                        modifier = paneModifier,
+                        comparedIds = comparedIds,
+                        allTags = allTags,
+                        allBrands = allBrands,
+                        allProductNames = allProductNames,
+                        selectedTagOrBrand = selectedTagOrBrand,
+                        onSelectTagOrBrand = { selectedTagOrBrand = it },
+                        searchQuery = searchQuery,
+                        onSearchChange = onSearchChange,
+                        catalogViewMode = catalogViewMode,
+                        onCatalogViewModeChange = { catalogViewMode = it },
+                        onNavigateToSmartAdd = onNavigateToSmartAdd,
+                        onNavigateToAddProduct = onNavigateToAddProduct,
+                        filteredProducts = filteredProducts,
                         specifications = specifications,
                         reviews = reviews,
-                        comparedIds = comparedIds,
                         onToggleCompare = onToggleCompare,
-                        onProductClick = onProductClick
+                        onProductClick = onProductClick,
+                        selectedProduct = selectedProduct,
+                        showTwoPane = true
+                    )
+                },
+                secondPane = { paneModifier ->
+                    ProductDetailPaneContent(
+                        product = selectedProduct,
+                        specifications = prodSpecs,
+                        reviews = prodReviews,
+                        isCompared = isCompared,
+                        onToggleCompare = { onToggleCompare(selectedProduct.id) },
+                        onEdit = { onEditProduct(selectedProduct) },
+                        onDelete = { onDeleteProduct(selectedProduct.id) },
+                        onAddSpec = { onAddSpec?.invoke(selectedProduct) },
+                        onAddReview = { onAddReview?.invoke(selectedProduct) },
+                        onReviewClick = { onReviewClick?.invoke(it) },
+                        onEditReview = onEditReview,
+                        onDeleteSpec = onDeleteSpec,
+                        onSaveSpec = onSaveSpec,
+                        onDismiss = onDismissDetail,
+                        isTwoPane = true,
+                        modifier = paneModifier
                     )
                 }
-            } else {
-                items(filteredProducts, key = { it.id }) { product ->
-            val isCompared = product.id in comparedIds
-            val prodSpecs = specifications.filter { it.productId == product.id || it.productTitle == product.name }
-            val prodReviews = reviews.filter { product.id in it.productIds || product.name in it.productTitles }
+            )
+        } else {
+            CatalogListPane(
+                modifier = Modifier.fillMaxSize(),
+                comparedIds = comparedIds,
+                allTags = allTags,
+                allBrands = allBrands,
+                allProductNames = allProductNames,
+                selectedTagOrBrand = selectedTagOrBrand,
+                onSelectTagOrBrand = { selectedTagOrBrand = it },
+                searchQuery = searchQuery,
+                onSearchChange = onSearchChange,
+                catalogViewMode = catalogViewMode,
+                onCatalogViewModeChange = { catalogViewMode = it },
+                onNavigateToSmartAdd = onNavigateToSmartAdd,
+                onNavigateToAddProduct = onNavigateToAddProduct,
+                filteredProducts = filteredProducts,
+                specifications = specifications,
+                reviews = reviews,
+                onToggleCompare = onToggleCompare,
+                onProductClick = onProductClick,
+                selectedProduct = selectedProduct,
+                showTwoPane = false
+            )
+        }
 
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onProductClick(product) }
-                    .testTag("product_card_${product.id}")
+        if (comparedIds.isNotEmpty()) {
+            val comparedProducts = remember(comparedIds, products) {
+                products.filter { it.id in comparedIds }
+            }
+            ComparisonTray(
+                selectedProducts = comparedProducts,
+                onRemoveProduct = { onToggleCompare(it) },
+                onClearAll = onClearComparison,
+                onCompareNow = onNavigateToCompare,
+                onOpenSmartAdd = onNavigateToSmartAdd,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CatalogListPane(
+    modifier: Modifier = Modifier,
+    comparedIds: Set<String>,
+    allTags: List<String>,
+    allBrands: List<String>,
+    allProductNames: List<String>,
+    selectedTagOrBrand: String?,
+    onSelectTagOrBrand: (String?) -> Unit,
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    catalogViewMode: String,
+    onCatalogViewModeChange: (String) -> Unit,
+    onNavigateToSmartAdd: () -> Unit,
+    onNavigateToAddProduct: () -> Unit,
+    filteredProducts: List<ProductItem>,
+    specifications: List<SpecificationItem>,
+    reviews: List<ReviewItem>,
+    onToggleCompare: (String) -> Unit,
+    onProductClick: (ProductItem) -> Unit,
+    selectedProduct: ProductItem? = null,
+    showTwoPane: Boolean = false
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 220.dp),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = if (comparedIds.isNotEmpty()) {
+            com.example.ui.theme.AppSpacing.ScreenWithFloatingTrayPadding
+        } else {
+            com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable
+        },
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // 1. Filter products by tag / brand / product Card with integrated search
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            TagBrandProductFilter(
+                label = "Filter products by tag / brand / product",
+                tags = allTags,
+                brands = allBrands,
+                products = allProductNames,
+                selectedTag = selectedTagOrBrand ?: "All",
+                onSelectTag = { tag ->
+                    onSelectTagOrBrand(if (tag.equals("All", ignoreCase = true)) "All" else tag)
+                },
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchChange,
+                searchPlaceholder = "Search tags, brands, or products...",
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // 2. Actions Row: View Toggle, Smart Add Product, Add Product
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                // Grid / Table View Switcher
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.height(42.dp)
                 ) {
-                    // Header: Brand Badge on left, + Compare button on right
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
+                        // Grid Button
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF334155)
+                            shape = RoundedCornerShape(7.dp),
+                            color = if (catalogViewMode == "grid") Color.White else Color.Transparent,
+                            shadowElevation = if (catalogViewMode == "grid") 1.dp else 0.dp,
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .clickable { onCatalogViewModeChange("grid") }
+                                .testTag("catalog_view_mode_grid")
                         ) {
-                            Text(
-                                text = product.brand.uppercase().ifBlank { "GENERIC" },
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-
-                        OutlinedButton(
-                            onClick = { onToggleCompare(product.id) },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if (isCompared) Color(0xFFEEF2FF) else Color.White,
-                                contentColor = if (isCompared) Color(0xFF4F46E5) else Color(0xFF0F172A)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                if (isCompared) Color(0xFF4F46E5) else Color(0xFFCBD5E1)
-                            ),
-                            modifier = Modifier.height(30.dp)
-                        ) {
-                            Icon(
-                                if (isCompared) Icons.Default.Check else Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = if (isCompared) "Compared" else "Compare",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-
-                    // Center Visual Graphic / Photo Container (Catalog module.PNG)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFFAFAFA),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val firstPic = product.pictures.firstOrNull()?.url
-                            val firstPicName = product.pictures.firstOrNull()?.name
-                            val context = LocalContext.current
-
-                            if (!firstPic.isNullOrBlank() || !firstPicName.isNullOrBlank()) {
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(resolveImageModel(context, firstPic ?: "", preferredName = firstPicName))
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = product.name,
-                                    contentScale = ContentScale.Fit,
-                                    loading = {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.dp,
-                                                color = Color(0xFF6366F1)
-                                            )
-                                        }
-                                    },
-                                    error = {
-                                        DeviceGraphicPlaceholder(
-                                            title = product.name,
-                                            brand = product.brand,
-                                            tags = product.tags,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(8.dp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.GridView,
+                                    contentDescription = "Grid view",
+                                    tint = if (catalogViewMode == "grid") Color(0xFF4F46E5) else Color(0xFF64748B),
+                                    modifier = Modifier.size(15.dp)
                                 )
-                            } else {
-                                DeviceGraphicPlaceholder(
-                                    title = product.name,
-                                    brand = product.brand,
-                                    tags = product.tags,
-                                    modifier = Modifier.fillMaxSize()
+                                Text(
+                                    "Grid",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (catalogViewMode == "grid") FontWeight.Bold else FontWeight.Medium,
+                                    color = if (catalogViewMode == "grid") Color(0xFF0F172A) else Color(0xFF64748B)
+                                )
+                            }
+                        }
+
+                        // Table Button
+                        Surface(
+                            shape = RoundedCornerShape(7.dp),
+                            color = if (catalogViewMode == "table") Color.White else Color.Transparent,
+                            shadowElevation = if (catalogViewMode == "table") 1.dp else 0.dp,
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .clickable { onCatalogViewModeChange("table") }
+                                .testTag("catalog_view_mode_table")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.FormatListBulleted,
+                                    contentDescription = "Table view",
+                                    tint = if (catalogViewMode == "table") Color(0xFF4F46E5) else Color(0xFF64748B),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    "Table",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (catalogViewMode == "table") FontWeight.Bold else FontWeight.Medium,
+                                    color = if (catalogViewMode == "table") Color(0xFF0F172A) else Color(0xFF64748B)
                                 )
                             }
                         }
                     }
+                }
 
-                    // Tags row
-                    if (product.tags.isNotEmpty()) {
+                // Smart Add Product Button
+                Button(
+                    onClick = onNavigateToSmartAdd,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("catalog_smart_add_btn"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0F172A),
+                        contentColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color(0xFFFACC15),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    ButtonText(
+                        text = "Smart Add Product",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                // Add Product Button
+                Button(
+                    onClick = onNavigateToAddProduct,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("catalog_add_product_btn"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4F46E5),
+                        contentColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    ButtonText(
+                        text = "Add Product",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
+        // 4. Products List or Grid
+        if (filteredProducts.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SearchOff,
+                            contentDescription = null,
+                            tint = Color(0xFF94A3B8),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Text(
+                            text = "No products matching \"${selectedTagOrBrand ?: searchQuery}\"",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+            }
+        } else if (catalogViewMode == "table") {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                CatalogTableView(
+                    products = filteredProducts,
+                    specifications = specifications,
+                    reviews = reviews,
+                    comparedIds = comparedIds,
+                    onToggleCompare = onToggleCompare,
+                    onProductClick = onProductClick
+                )
+            }
+        } else {
+            items(filteredProducts, key = { it.id }) { product ->
+                val isCompared = product.id in comparedIds
+                val prodSpecs = specifications.filter { it.productId == product.id || it.productTitle == product.name }
+                val prodReviews = reviews.filter { product.id in it.productIds || product.name in it.productTitles }
+                val isSelected = showTwoPane && selectedProduct?.id == product.id
+
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) Color(0xFFF8FAFC) else Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        if (isSelected) 2.dp else 1.dp,
+                        if (isSelected) Color(0xFF4F46E5) else Color(0xFFE2E8F0)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onProductClick(product) }
+                        .testTag("product_card_${product.id}")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Header: Brand Badge on left, + Compare button on right
                         Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            product.tags.forEach { tag ->
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFFF1F5F9)
-                                ) {
-                                    Text(
-                                        text = tag,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF475569),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF334155)
+                            ) {
+                                Text(
+                                    text = product.brand.uppercase().ifBlank { "GENERIC" },
+                                    color = Color.White,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = { onToggleCompare(product.id) },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isCompared) Color(0xFFEEF2FF) else Color.White,
+                                    contentColor = if (isCompared) Color(0xFF4F46E5) else Color(0xFF0F172A)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isCompared) Color(0xFF4F46E5) else Color(0xFFCBD5E1)
+                                ),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Icon(
+                                    if (isCompared) Icons.Default.Check else Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = if (isCompared) "Compared" else "Compare",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+                        // Center Visual Graphic / Photo Container (Catalog module.PNG)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFAFAFA),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val firstPic = product.pictures.firstOrNull()?.url
+                                val firstPicName = product.pictures.firstOrNull()?.name
+                                val context = LocalContext.current
+
+                                if (!firstPic.isNullOrBlank() || !firstPicName.isNullOrBlank()) {
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(resolveImageModel(context, firstPic ?: "", preferredName = firstPicName))
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = product.name,
+                                        contentScale = ContentScale.Fit,
+                                        loading = {
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(24.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = Color(0xFF6366F1)
+                                                )
+                                            }
+                                        },
+                                        error = {
+                                            DeviceGraphicPlaceholder(
+                                                title = product.name,
+                                                brand = product.brand,
+                                                tags = product.tags,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(8.dp)
+                                    )
+                                } else {
+                                    DeviceGraphicPlaceholder(
+                                        title = product.name,
+                                        brand = product.brand,
+                                        tags = product.tags,
+                                        modifier = Modifier.fillMaxSize()
                                     )
                                 }
                             }
                         }
-                    }
 
-                    // Product Title
-                    Text(
-                        text = product.name,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF0F172A)
-                    )
-
-                    // Specification Preview Block (Catalog module.PNG / Catalog module 2.PNG)
-                    if (prodSpecs.isNotEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF8FAFC),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        // Tags row
+                        if (product.tags.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                prodSpecs.take(2).forEach { spec ->
-                                    val isMultiLineOrLong = remember(spec.details) {
-                                        val clean = htmlToPlainText(spec.details)
-                                        clean.contains('\n') || clean.contains('-') || clean.contains('•') || clean.length > 25
+                                product.tags.forEach { tag ->
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFFF1F5F9)
+                                    ) {
+                                        Text(
+                                            text = tag,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF475569),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
                                     }
+                                }
+                            }
+                        }
 
-                                    if (isMultiLineOrLong) {
-                                        // Left-aligned on new line for multi-line or long values
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                                        ) {
+                        // Product Title
+                        Text(
+                            text = product.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        // Specification Preview Block (Catalog module.PNG / Catalog module 2.PNG)
+                        if (prodSpecs.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFF8FAFC),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    prodSpecs.take(2).forEach { spec ->
+                                        val isMultiLineOrLong = remember(spec.details) {
+                                            val clean = htmlToPlainText(spec.details)
+                                            clean.contains('\n') || clean.contains('-') || clean.contains('•') || clean.length > 25
+                                        }
+
+                                        if (isMultiLineOrLong) {
+                                            // Left-aligned on new line for multi-line or long values
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = spec.specName,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF64748B)
+                                                    )
+                                                    if (!spec.unit.isNullOrBlank()) {
+                                                        SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                    }
+                                                }
+                                                FormattedSpecHtml(
+                                                    content = spec.details,
+                                                    fontSize = 12.sp,
+                                                    lineHeight = 17.sp,
+                                                    color = Color(0xFF0F172A),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        } else {
+                                            // Short single-line specs: left spec name, left-aligned value on right
                                             Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
                                                     text = spec.specName,
                                                     fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = Color(0xFF64748B)
+                                                    color = Color(0xFF64748B),
+                                                    modifier = Modifier.padding(end = 8.dp)
                                                 )
-                                                if (!spec.unit.isNullOrBlank()) {
-                                                    SpecUnitBadge(unit = spec.unit, details = spec.details)
-                                                }
-                                            }
-                                            FormattedSpecHtml(
-                                                content = spec.details,
-                                                fontSize = 12.sp,
-                                                lineHeight = 17.sp,
-                                                color = Color(0xFF0F172A),
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                    } else {
-                                        // Short single-line specs: left spec name, left-aligned value on right
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = spec.specName,
-                                                fontSize = 12.sp,
-                                                color = Color(0xFF64748B),
-                                                modifier = Modifier.padding(end = 8.dp)
-                                            )
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                FormattedSpecHtml(
-                                                    content = spec.details,
-                                                    fontSize = 12.sp,
-                                                    lineHeight = 16.sp,
-                                                    color = Color(0xFF0F172A)
-                                                )
-                                                if (!spec.unit.isNullOrBlank()) {
-                                                    SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    FormattedSpecHtml(
+                                                        content = spec.details,
+                                                        fontSize = 12.sp,
+                                                        lineHeight = 16.sp,
+                                                        color = Color(0xFF0F172A)
+                                                    )
+                                                    if (!spec.unit.isNullOrBlank()) {
+                                                        SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                    }
                                                 }
                                             }
                                         }
@@ -559,59 +688,59 @@ fun CatalogScreen(
                                 }
                             }
                         }
-                    }
 
-                    // Card Footer: Reviews / Specs count and Details > link
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                        // Card Footer: Reviews / Specs count and Details > link
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.ChatBubbleOutline,
-                                contentDescription = null,
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = "${prodReviews.size} reviews",
-                                fontSize = 11.sp,
-                                color = Color(0xFF64748B)
-                            )
-                            Text("•", fontSize = 11.sp, color = Color(0xFFCBD5E1))
-                            Icon(
-                                Icons.Default.FormatListBulleted,
-                                contentDescription = null,
-                                tint = Color(0xFF64748B),
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = "${prodSpecs.size} specs",
-                                fontSize = 11.sp,
-                                color = Color(0xFF64748B)
-                            )
-                        }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.ChatBubbleOutline,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "${prodReviews.size} reviews",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                                Text("•", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                                Icon(
+                                    Icons.Default.FormatListBulleted,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "${prodSpecs.size} specs",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.clickable { onProductClick(product) }
-                        ) {
-                            Text(
-                                text = "Details",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF4F46E5)
-                            )
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                tint = Color(0xFF4F46E5),
-                                modifier = Modifier.size(16.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { onProductClick(product) }
+                            ) {
+                                Text(
+                                    text = "Details",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF4F46E5)
+                                )
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4F46E5),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -620,20 +749,49 @@ fun CatalogScreen(
     }
 }
 
-    if (comparedIds.isNotEmpty()) {
-        val comparedProducts = remember(comparedIds, products) {
-            products.filter { it.id in comparedIds }
+@Composable
+fun CatalogDetailPlaceholder(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAFC)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = Color(0xFFEEF2FF),
+                modifier = Modifier.size(72.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Devices,
+                        contentDescription = null,
+                        tint = Color(0xFF6366F1),
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+            Text(
+                text = "Select a product to view details",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+            Text(
+                text = "Choose any product from the list on the left to inspect complete specifications, user reviews, and photos side-by-side.",
+                fontSize = 13.sp,
+                color = Color(0xFF64748B),
+                lineHeight = 18.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.widthIn(max = 320.dp)
+            )
         }
-        ComparisonTray(
-            selectedProducts = comparedProducts,
-            onRemoveProduct = { onToggleCompare(it) },
-            onClearAll = onClearComparison,
-            onCompareNow = onNavigateToCompare,
-            onOpenSmartAdd = onNavigateToSmartAdd,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
-}
 }
 
 /**

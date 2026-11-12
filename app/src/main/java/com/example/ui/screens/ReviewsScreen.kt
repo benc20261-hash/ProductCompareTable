@@ -34,13 +34,16 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.model.PictureItem
 import com.example.model.ProductItem
 import com.example.model.ReviewItem
 import com.example.model.resolveImageModel
 import com.example.ui.components.ButtonText
 import com.example.ui.components.DeleteConfirmDialog
+import com.example.ui.components.DraggableTwoPaneLayout
 import com.example.ui.components.FullScreenPhotoLightbox
+import com.example.ui.components.RichReviewViewerContent
 import com.example.ui.components.TagBrandProductFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,11 +59,14 @@ fun ReviewsScreen(
     onImportFolder: (Uri) -> Unit = {},
     onImportZip: (Uri) -> Unit = {},
     onImportHtml: (Uri) -> Unit = {},
+    selectedReview: ReviewItem? = null,
+    isTabletTwoPane: Boolean = false,
+    onCloseReview: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedProductId by remember { mutableStateOf<String?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var selectedProductId by rememberSaveable { mutableStateOf<String?>(null) }
     var isProductDropdownOpen by remember { mutableStateOf(false) }
     var dropdownSearchQuery by remember { mutableStateOf("") }
     var lightboxImages by remember { mutableStateOf<List<PictureItem>?>(null) }
@@ -86,7 +92,7 @@ fun ReviewsScreen(
         }
     }
 
-    var selectedFilterTag by remember { mutableStateOf("All") }
+    var selectedFilterTag by rememberSaveable { mutableStateOf("All") }
     var reviewToDelete by remember { mutableStateOf<ReviewItem?>(null) }
 
     val allTags = remember(products) {
@@ -149,15 +155,16 @@ fun ReviewsScreen(
         else products.find { it.id == selectedProductId }?.name
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 340.dp),
-        modifier = modifier
-            .fillMaxSize()
-            .background(com.example.ui.theme.AppColors.CanvasBackground),
-        contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    val reviewListContent: @Composable (Modifier, Boolean) -> Unit = { paneModifier, showTwoPane ->
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 280.dp),
+            modifier = paneModifier
+                .fillMaxSize()
+                .background(com.example.ui.theme.AppColors.CanvasBackground),
+            contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
         // 1. Header: Community User Reviews (IMG_9631.PNG)
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -684,11 +691,17 @@ fun ReviewsScreen(
         items(filteredReviews, key = { it.id }) { review ->
             val linkedProductTitle = review.productTitles.firstOrNull() ?: "Product"
             val linkedProduct = products.find { it.name == linkedProductTitle || it.id in review.productIds }
+            val isSelected = showTwoPane && selectedReview?.id == review.id
 
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isSelected) Color(0xFFF8FAFC) else Color.White
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    if (isSelected) 2.dp else 1.dp,
+                    if (isSelected) Color(0xFF4F46E5) else Color(0xFFE2E8F0)
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onReviewClick(review) }
@@ -1008,6 +1021,41 @@ fun ReviewsScreen(
             }
         }
     }
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(com.example.ui.theme.AppColors.CanvasBackground)
+    ) {
+        val showTwoPane = isTabletTwoPane || maxWidth >= 768.dp
+
+        if (showTwoPane && selectedReview != null) {
+            DraggableTwoPaneLayout(
+                modifier = Modifier.fillMaxSize(),
+                defaultSplitFraction = 0.45f,
+                minSplitFraction = 0.20f,
+                maxSplitFraction = 0.80f,
+                firstPane = { paneModifier ->
+                    reviewListContent(paneModifier, true)
+                },
+                secondPane = { paneModifier ->
+                    RichReviewViewerContent(
+                        review = selectedReview,
+                        products = products,
+                        onClose = onCloseReview ?: { onReviewClick(selectedReview) },
+                        onEditReview = onEditReview,
+                        onDeleteReview = onDeleteReview,
+                        onViewProduct = onProductClick,
+                        isTwoPane = true,
+                        modifier = paneModifier
+                    )
+                }
+            )
+        } else {
+            reviewListContent(Modifier.fillMaxSize(), false)
+        }
+    }
 
     // Full-Screen Photo Lightbox Modal
     lightboxImages?.let { images ->
@@ -1031,5 +1079,50 @@ fun ReviewsScreen(
             },
             onDismiss = { reviewToDelete = null }
         )
+    }
+}
+
+@Composable
+fun ReviewDetailPlaceholder(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFFF8FAFC)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Surface(
+                shape = CircleShape,
+                color = Color(0xFFEEF2FF),
+                modifier = Modifier.size(72.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.RateReview,
+                        contentDescription = null,
+                        tint = Color(0xFF6366F1),
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+            }
+            Text(
+                text = "Select a review to read",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+            Text(
+                text = "Choose any community review from the list to view rich impressions, benchmark photos, and ratings side-by-side.",
+                fontSize = 13.sp,
+                color = Color(0xFF64748B),
+                lineHeight = 18.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.widthIn(max = 320.dp)
+            )
+        }
     }
 }

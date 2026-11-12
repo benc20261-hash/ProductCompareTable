@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -515,150 +516,170 @@ fun RichReviewEditor(
                     }
                 }
 
-                // Middle Inputs: REVIEWING PRODUCT banner, Report Name, Review Author
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                // Compact Review Metadata Row: Product Selector Chip, Title Input, Author Input
+                Surface(
+                    color = Color.White,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Reviewing Product Box (Screenshot edit and add table.png)
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                val thumb = selectedProduct?.pictures?.firstOrNull()?.url ?: ""
-                                if (thumb.isNotBlank()) {
-                                    AsyncImage(
-                                        model = resolveImageModel(context, thumb),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(Color(0xFFF8FAFC))
-                                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(6.dp))
-                                            .padding(2.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = "REVIEWING PRODUCT",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF4F46E5)
-                                    )
-                                    Text(
-                                        text = selectedProduct?.name ?: "Select a product",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF0F172A)
-                                    )
-                                }
-                            }
-
-                            // Switch to dropdown
-                            Box {
-                                OutlinedButton(
-                                    onClick = { isProductDropdownOpen = true },
-                                    shape = RoundedCornerShape(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                    modifier = Modifier.height(28.dp)
-                                ) {
-                                    Text("Switch ∨", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                }
-
-                                DropdownMenu(
-                                    expanded = isProductDropdownOpen,
-                                    onDismissRequest = { isProductDropdownOpen = false }
-                                ) {
-                                    products.forEach { prod ->
-                                        DropdownMenuItem(
-                                            text = { Text(prod.name, fontSize = 12.sp) },
-                                            onClick = {
-                                                selectedProduct = prod
-                                                isProductDropdownOpen = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // REVIEW / REPORT NAME input
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "REVIEW / REPORT NAME",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4F46E5)
-                        )
-                        OutlinedTextField(
-                            value = title,
-                            onValueChange = { title = it },
-                            placeholder = { Text("Give your review report a descriptive name", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF4F46E5),
-                                unfocusedBorderColor = Color(0xFFE2E8F0),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White
-                            )
-                        )
-                    }
-
-                    // Review Author & Tip Row (Screenshot edit and add table.png)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Review Author:",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF475569),
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        OutlinedTextField(
-                            value = authorName,
-                            onValueChange = { authorName = it },
-                            placeholder = { Text("Author name", fontSize = 11.sp) },
-                            modifier = Modifier.width(150.dp),
-                            singleLine = true,
+                        // 1. Product Switcher Pill Button
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF1F5F9),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier
+                                    .clickable { isProductDropdownOpen = true }
+                                    .height(38.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val thumb = selectedProduct?.pictures?.firstOrNull()?.url ?: ""
+                                    if (thumb.isNotBlank()) {
+                                        AsyncImage(
+                                            model = resolveImageModel(context, thumb),
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier
+                                                .size(22.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Default.Devices,
+                                            contentDescription = null,
+                                            tint = Color(0xFF4F46E5),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "PRODUCT",
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF4F46E5),
+                                            lineHeight = 10.sp
+                                        )
+                                        Text(
+                                            text = selectedProduct?.name ?: "Select Product",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A),
+                                            maxLines = 1,
+                                            lineHeight = 14.sp
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = "Switch product",
+                                        tint = Color(0xFF64748B),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = isProductDropdownOpen,
+                                onDismissRequest = { isProductDropdownOpen = false }
+                            ) {
+                                products.forEach { prod ->
+                                    DropdownMenuItem(
+                                        text = { Text(prod.name, fontSize = 12.sp) },
+                                        onClick = {
+                                            selectedProduct = prod
+                                            isProductDropdownOpen = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Title Input inside styled compact Surface
+                        Surface(
                             shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF4F46E5),
-                                unfocusedBorderColor = Color(0xFFE2E8F0)
-                            )
-                        )
-                        Text(
-                            text = "💡 Tip: Click on any table to add or delete rows and columns, or press Tab in the last cell!",
-                            fontSize = 10.sp,
-                            color = Color(0xFF94A3B8),
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            ) {
+                                BasicTextField(
+                                    value = title,
+                                    onValueChange = { title = it },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF0F172A)
+                                    ),
+                                    decorationBox = { innerTextField ->
+                                        if (title.isEmpty()) {
+                                            Text(
+                                                "Review title / report name...",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF94A3B8)
+                                            )
+                                        }
+                                        innerTextField()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        // 3. Author Input inside styled compact Surface
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            modifier = Modifier
+                                .width(150.dp)
+                                .height(38.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                BasicTextField(
+                                    value = authorName,
+                                    onValueChange = { authorName = it },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF0F172A)
+                                    ),
+                                    decorationBox = { innerTextField ->
+                                        if (authorName.isEmpty()) {
+                                            Text("Author", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                        }
+                                        innerTextField()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
                     }
                 }
 
