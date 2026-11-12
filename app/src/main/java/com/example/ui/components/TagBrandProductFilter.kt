@@ -201,55 +201,7 @@ fun TagBrandProductFilter(
                 )
             }
 
-            // Search Bar Input (Integrated into card, matching screenshots)
-            OutlinedTextField(
-                value = effectiveQuery,
-                onValueChange = handleQueryChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("catalog_search_input"),
-                placeholder = {
-                    Text(
-                        text = searchPlaceholder,
-                        fontSize = 12.5.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = Color(0xFF94A3B8),
-                        modifier = Modifier.size(17.dp)
-                    )
-                },
-                trailingIcon = {
-                    if (effectiveQuery.isNotEmpty()) {
-                        IconButton(
-                            onClick = { handleQueryChange("") },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear",
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF4F46E5),
-                    unfocusedBorderColor = Color(0xFFE2E8F0),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color(0xFFF8FAFC)
-                )
-            )
-
-            // Row 2: Category Scope Selector Tabs [ ✨ All (N) ] [ 🏷️ Tags (N) ] [ 🏢 Brands (N) ] [ 📦 Products (N) ] and [ Filtered: X ✕ ]
+            // Row: Category Scope Selector Tabs [ ✨ All (N) ] [ 🏷️ Tags (N) ] [ 🏢 Brands (N) ] [ 📦 Products (N) ] + Compact Search Box + [ Filtered: X ✕ ]
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -308,6 +260,68 @@ fun TagBrandProductFilter(
                         unselectedIconTint = Color(0xFF10B981),
                         onClick = { activeCategory = "product" }
                     )
+
+                    // Compact Search Input ("same size as all or slightly bigger", height 28dp matching CategoryTabPill)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, if (effectiveQuery.isNotEmpty()) Color(0xFF4F46E5) else Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .height(28.dp)
+                            .widthIn(min = 90.dp, max = 150.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .padding(horizontal = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = if (effectiveQuery.isNotEmpty()) Color(0xFF4F46E5) else Color(0xFF94A3B8),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Box(
+                                modifier = Modifier.weight(1f, fill = false),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (effectiveQuery.isEmpty()) {
+                                    Text(
+                                        text = if (searchPlaceholder == "Search tags, brands, or products...") "Search..." else searchPlaceholder,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF94A3B8),
+                                        maxLines = 1
+                                    )
+                                }
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = effectiveQuery,
+                                    onValueChange = handleQueryChange,
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF0F172A),
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Color(0xFF4F46E5)),
+                                    modifier = Modifier
+                                        .widthIn(min = 40.dp, max = 100.dp)
+                                        .testTag("catalog_search_input")
+                                )
+                            }
+                            if (effectiveQuery.isNotEmpty()) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clickable { handleQueryChange("") }
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Filtered Active Badge (e.g. "Filtered: Adidas ✕") aligned on the right of category tabs

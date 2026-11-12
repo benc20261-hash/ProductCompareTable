@@ -124,7 +124,8 @@ fun ActiveTabContent(
                         viewModel.setActiveTab(AppNavTab.CATALOG)
                     },
                     onDeleteProduct = null,
-                    onNavigateBack = { viewModel.setActiveTab(AppNavTab.CATALOG) }
+                    onNavigateBack = { viewModel.setActiveTab(AppNavTab.CATALOG) },
+                    isTabletMode = isDesktopMode
                 )
             }
             AppNavTab.REVIEWS -> {

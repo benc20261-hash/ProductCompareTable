@@ -666,7 +666,8 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
             onNavigateBack = {
                 viewModel.showEditProduct(null)
                 viewModel.showProductDetail(prod)
-            }
+            },
+            isTabletMode = isDesktopMode
         )
     }
 
@@ -680,7 +681,8 @@ fun ProductCompareApp(viewModel: ProductCompareViewModel) {
                 viewModel.openAddProductDialog(false)
             },
             onDeleteProduct = null,
-            onNavigateBack = { viewModel.openAddProductDialog(false) }
+            onNavigateBack = { viewModel.openAddProductDialog(false) },
+            isTabletMode = isDesktopMode
         )
     }
 

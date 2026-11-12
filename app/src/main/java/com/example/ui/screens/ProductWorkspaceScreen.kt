@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -79,11 +81,19 @@ fun ProductWorkspaceScreen(
     onSaveProduct: (ProductItem, List<SpecificationItem>, Boolean) -> Unit,
     onDeleteProduct: ((String) -> Unit)? = null,
     onNavigateBack: () -> Unit,
+    isTabletMode: Boolean = run {
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        cfg.screenWidthDp >= 600 || cfg.smallestScreenWidthDp >= 600
+    },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val isNew = initialProduct == null
     val coroutineScope = rememberCoroutineScope()
+
+    val defaultZoom = if (isTabletMode) 60 else 100
+    var zoomPercent by rememberSaveable(isTabletMode) { mutableIntStateOf(defaultZoom) }
+    var showZoomMenu by remember { mutableStateOf(false) }
 
     val productId = remember { initialProduct?.id ?: ("rec_" + UUID.randomUUID().toString().replace("-", "").take(17)) }
     var productName by remember { mutableStateOf(initialProduct?.name ?: "") }
@@ -230,59 +240,128 @@ fun ProductWorkspaceScreen(
         specsList.addAll(sorted)
     }
 
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp.dp
+    val maxContentWidth = (screenWidthDp * (zoomPercent / 100f)).coerceAtLeast(360.dp)
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = {
-            Surface(
-                color = Color.White,
-                shadowElevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            topBar = {
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 1.dp
                 ) {
-                    // Back button
-                    TextButton(
-                        onClick = onNavigateBack,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("workspace_back_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color(0xFF0F172A),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "Back",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                            color = Color(0xFF0F172A)
-                        )
-                    }
-
-                    // Title: Add New Product or Edit: [Name]
-                    Text(
-                        text = if (isNew) "Add New Product" else if (productName.isNotBlank()) "Edit: $productName" else "Create Product",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = Color(0xFF0F172A),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                    )
-
-                    // Right action icons: Trash, Publish/Save, Close
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        if (!isNew && onDeleteProduct != null) {
+                        // Back button
+                        TextButton(
+                            onClick = onNavigateBack,
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("workspace_back_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Back",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = Color(0xFF0F172A)
+                            )
+                        }
+
+                        // Title: Add New Product or Edit: [Name]
+                        Text(
+                            text = if (isNew) "Add New Product" else if (productName.isNotBlank()) "Edit: $productName" else "Create Product",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF0F172A),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        )
+
+                        // Right action icons: Zoom, Trash, Publish/Save, Close
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            // Zoom pill
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFF1F5F9),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                                    modifier = Modifier.padding(horizontal = 2.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            zoomPercent = (zoomPercent - 10).coerceAtLeast(50)
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Remove, contentDescription = "Zoom out", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                                    }
+
+                                    Box {
+                                        Text(
+                                            text = "${zoomPercent}%",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1E293B),
+                                            modifier = Modifier
+                                                .clickable { showZoomMenu = true }
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+
+                                        DropdownMenu(
+                                            expanded = showZoomMenu,
+                                            onDismissRequest = { showZoomMenu = false }
+                                        ) {
+                                            listOf(50, 60, 65, 75, 85, 100, 115, 130, 150).forEach { preset ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
+                                                            fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
+                                                            fontSize = 12.sp,
+                                                            color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        zoomPercent = preset
+                                                        showZoomMenu = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            zoomPercent = (zoomPercent + 10).coerceAtMost(160)
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "Zoom in", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                                    }
+                                }
+                            }
+
+                            if (!isNew && onDeleteProduct != null) {
                             IconButton(
                                 onClick = { showDeleteProductConfirm = true },
                                 modifier = Modifier.size(36.dp).testTag("workspace_delete_icon_btn")
@@ -342,110 +421,122 @@ fun ProductWorkspaceScreen(
                 shadowElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Top stats line: Boya notra        2 tags / 5 specifications ✓
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = maxContentWidth)
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = productName.ifBlank { "Untitled product" },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color(0xFF0F172A),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-
+                        // Top stats line: Boya notra        2 tags / 5 specifications ✓
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${selectedTags.size} tags / ${specsList.size} specifications",
-                                fontSize = 12.sp,
-                                color = Color(0xFF64748B),
-                                fontWeight = FontWeight.Medium
+                                text = productName.ifBlank { "Untitled product" },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF0F172A),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = null,
-                                tint = Color(0xFF10B981),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
 
-                    // Action buttons: Full-width "Publish product" when new, or Trash + "Save changes" when editing
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (!isNew && onDeleteProduct != null) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFFEF2F2),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA)),
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clickable { showDeleteProductConfirm = true }
-                                    .testTag("workspace_bottom_delete_btn")
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.DeleteOutline,
-                                        contentDescription = "Delete product",
-                                        tint = Color(0xFFEF4444),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                Text(
+                                    text = "${selectedTags.size} tags / ${specsList.size} specifications",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF64748B),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
 
-                        Button(
-                            onClick = { doSave() },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .testTag("workspace_bottom_save_changes_btn")
+                        // Action buttons: Full-width "Publish product" when new, or Trash + "Save changes" when editing
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = if (isNew) "Publish product" else "Save changes",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                            if (!isNew && onDeleteProduct != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFFFEF2F2),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECACA)),
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clickable { showDeleteProductConfirm = true }
+                                        .testTag("workspace_bottom_delete_btn")
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.DeleteOutline,
+                                            contentDescription = "Delete product",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = { doSave() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .testTag("workspace_bottom_save_changes_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (isNew) "Publish product" else "Save changes",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
             }
         }
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(com.example.ui.theme.AppColors.CanvasBackground),
-            contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            contentAlignment = Alignment.TopCenter
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .widthIn(max = maxContentWidth)
+                    .fillMaxHeight(),
+                contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
             // Workspace Subheader
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1607,6 +1698,7 @@ fun ProductWorkspaceScreen(
                 }
             }
         }
+    }
     }
 
     // Delete Product Confirmation Dialog
