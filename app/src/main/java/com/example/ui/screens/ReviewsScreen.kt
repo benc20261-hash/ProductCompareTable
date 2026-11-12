@@ -165,9 +165,9 @@ fun ReviewsScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-        // 1. Header: Community User Reviews (IMG_9631.PNG)
+        // 1. Header: Community User Reviews
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,7 +206,7 @@ fun ReviewsScreen(
                     }
                 }
 
-                // Review Actions Row: Batch Import HTML / Folder & + Write a Review (Screenshot 3)
+                // Actions Row: Batch Import & Write Review
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -333,237 +333,129 @@ fun ReviewsScreen(
             }
         }
 
-        // 2. Search and Product Filter Card (IMG_9631.PNG)
+        // 2. Compact combined filter bar (search + product + tag chips) — saves ~200dp vs old 2 cards
         item(span = { GridItemSpan(maxLineSpan) }) {
             Card(
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Row 1: Search + Product picker on a single compact line (36dp total)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        // Search field
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFEEF2FF),
-                            modifier = Modifier.size(28.dp)
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.weight(1f).fillMaxHeight()
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.FilterList,
-                                    contentDescription = null,
-                                    tint = Color(0xFF4F46E5),
-                                    modifier = Modifier.size(16.dp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(14.dp))
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = androidx.compose.ui.text.TextStyle(
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF0F172A)
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    decorationBox = { inner ->
+                                        Box {
+                                            if (searchQuery.isEmpty()) Text("Search reviews...", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                            inner()
+                                        }
+                                    }
                                 )
-                            }
-                        }
-                        Column {
-                            Text(
-                                text = "Filter Reviews",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF0F172A)
-                            )
-                            Text(
-                                text = "Filter reviews by keyword, product name, or author tag.",
-                                fontSize = 11.sp,
-                                color = Color(0xFF64748B)
-                            )
-                        }
-                    }
-
-                    // Search box
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = {
-                            Text(
-                                "Search reviews by keyword or devic...",
-                                fontSize = 13.sp,
-                                color = Color(0xFF94A3B8)
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = Color(0xFF94A3B8),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
+                                if (searchQuery.isNotEmpty()) {
                                     Icon(
                                         Icons.Default.Close,
-                                        contentDescription = "Clear",
+                                        contentDescription = null,
                                         tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(12.dp).clickable { searchQuery = "" }
                                     )
                                 }
                             }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF4F46E5),
-                            unfocusedBorderColor = Color(0xFFE2E8F0),
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
-                        )
-                    )
+                        }
 
-                    // Product Filter Dropdown Row with Funnel icon
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.FilterList,
-                            contentDescription = "Filter",
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(20.dp)
-                        )
-
-                        Box(modifier = Modifier.weight(1f)) {
-                            OutlinedButton(
-                                onClick = { isProductDropdownOpen = !isProductDropdownOpen },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = Color.White,
-                                    contentColor = Color(0xFF0F172A)
-                                ),
+                        // Product dropdown chip
+                        Box {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selectedProductId != null) Color(0xFFEEF2FF) else Color(0xFFF1F5F9),
                                 border = androidx.compose.foundation.BorderStroke(
                                     1.dp,
-                                    if (isProductDropdownOpen) Color(0xFF4F46E5) else Color(0xFFE2E8F0)
+                                    if (selectedProductId != null) Color(0xFF4F46E5) else Color(0xFFE2E8F0)
                                 ),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                modifier = Modifier.fillMaxHeight().clickable { isProductDropdownOpen = !isProductDropdownOpen }
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Inventory2,
-                                            contentDescription = null,
-                                            tint = Color(0xFF4F46E5),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = selectedProductName ?: "All Products (${reviews.size})",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.sp,
-                                            color = Color(0xFF0F172A)
-                                        )
-                                    }
+                                    Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFF4F46E5), modifier = Modifier.size(13.dp))
+                                    Text(
+                                        text = selectedProductName ?: "All (${reviews.size})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF0F172A),
+                                        maxLines = 1
+                                    )
                                     Icon(
                                         if (isProductDropdownOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        tint = Color(0xFF64748B),
-                                        modifier = Modifier.size(18.dp)
+                                        contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(14.dp)
                                     )
                                 }
                             }
-
-                            // Expandable Product Filter Popover (IMG_9631.PNG)
                             DropdownMenu(
                                 expanded = isProductDropdownOpen,
                                 onDismissRequest = { isProductDropdownOpen = false },
-                                modifier = Modifier
-                                    .fillMaxWidth(0.85f)
-                                    .background(Color.White)
+                                modifier = Modifier.background(Color.White)
                             ) {
-                                // Search inside dropdown
                                 OutlinedTextField(
                                     value = dropdownSearchQuery,
                                     onValueChange = { dropdownSearchQuery = it },
-                                    placeholder = {
-                                        Text(
-                                            "Type to filter products...",
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF94A3B8)
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.Search,
-                                            contentDescription = null,
-                                            tint = Color(0xFF94A3B8),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    placeholder = { Text("Type to filter...", fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp)) },
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     singleLine = true
                                 )
-
                                 HorizontalDivider(color = Color(0xFFF1F5F9))
-
-                                // "All Products" Option
                                 DropdownMenuItem(
                                     text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Inventory2,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFF4F46E5),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                                Text(
-                                                    "All Products (${reviews.size})",
-                                                    fontWeight = if (selectedProductId == null) FontWeight.Bold else FontWeight.Medium,
-                                                    fontSize = 13.sp,
-                                                    color = Color(0xFF0F172A)
-                                                )
-                                            }
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFF4F46E5), modifier = Modifier.size(16.dp))
+                                            Text(
+                                                "All Products (${reviews.size})",
+                                                fontWeight = if (selectedProductId == null) FontWeight.Bold else FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
                                             if (selectedProductId == null) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = Color(0xFF4F46E5),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = Color(0xFF4F46E5), modifier = Modifier.size(14.dp))
                                             }
                                         }
                                     },
-                                    onClick = {
-                                        selectedProductId = null
-                                        isProductDropdownOpen = false
-                                    }
+                                    onClick = { selectedProductId = null; isProductDropdownOpen = false }
                                 )
-
                                 HorizontalDivider(color = Color(0xFFF1F5F9))
-
-                                // Product List Items with count badge
                                 filteredDropdownProducts.forEach { prod ->
                                     val count = productReviewCounts[prod.id] ?: 0
                                     val isChosen = selectedProductId == prod.id
-
                                     DropdownMenuItem(
                                         text = {
                                             Row(
@@ -571,88 +463,45 @@ fun ReviewsScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = Color(0xFFF1F5F9),
-                                                        modifier = Modifier.size(28.dp)
-                                                    ) {
-                                                        Box(contentAlignment = Alignment.Center) {
-                                                            Icon(
-                                                                Icons.Default.Devices,
-                                                                contentDescription = null,
-                                                                tint = Color(0xFF64748B),
-                                                                modifier = Modifier.size(16.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                    Column {
-                                                        Text(
-                                                            text = prod.name,
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium,
-                                                            color = Color(0xFF0F172A),
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                        Text(
-                                                            text = prod.brand,
-                                                            fontSize = 11.sp,
-                                                            color = Color(0xFF64748B)
-                                                        )
-                                                    }
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        prod.name,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = if (isChosen) FontWeight.Bold else FontWeight.Medium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(prod.brand, fontSize = 11.sp, color = Color(0xFF64748B))
                                                 }
-
-                                                // Count badge
-                                                Surface(
-                                                    shape = CircleShape,
-                                                    color = Color(0xFFF1F5F9),
-                                                    modifier = Modifier.size(24.dp)
-                                                ) {
+                                                Surface(shape = CircleShape, color = Color(0xFFF1F5F9), modifier = Modifier.size(22.dp)) {
                                                     Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            text = "$count",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF475569)
-                                                        )
+                                                        Text("$count", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF475569))
                                                     }
                                                 }
                                             }
                                         },
-                                        onClick = {
-                                            selectedProductId = prod.id
-                                            isProductDropdownOpen = false
-                                        }
+                                        onClick = { selectedProductId = prod.id; isProductDropdownOpen = false }
                                     )
                                 }
                             }
                         }
                     }
+
+                    // Row 2: Compact tag/brand/product chip strip (embedded, no separate card)
+                    TagBrandProductFilter(
+                        label = "",
+                        tags = allTags,
+                        brands = allBrands,
+                        products = allProductNames,
+                        selectedTag = selectedFilterTag,
+                        onSelectTag = { tag -> selectedFilterTag = tag },
+                        searchPlaceholder = "Search tags..."
+                    )
                 }
             }
         }
 
-        // 2b. Filter reviews by tag / brand / product (Screenshot 3)
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            TagBrandProductFilter(
-                label = "Filter reviews by tag / brand / product",
-                tags = allTags,
-                brands = allBrands,
-                products = allProductNames,
-                selectedTag = selectedFilterTag,
-                onSelectTag = { tag ->
-                    selectedFilterTag = tag
-                },
-                searchPlaceholder = "Search tags, brands, or products..."
-            )
-        }
-
-        // 3. Review Cards Feed (IMG_9632.PNG)
+        // 3. Review Cards Feed
         if (filteredReviews.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Card(
@@ -711,7 +560,7 @@ fun ReviewsScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Top: Product Pill Badge with External Link (IMG_9632.PNG)
+                    // Top: Product Pill Badge with External Link
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -830,7 +679,7 @@ fun ReviewsScreen(
                             }
                         }
 
-                        // Right Actions: View, Edit, Delete (IMG_9632.PNG)
+                        // Right Actions: View, Edit, Delete
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -928,7 +777,7 @@ fun ReviewsScreen(
                         )
                     }
 
-                    // Picture thumbnails gallery (Screenshot 8.png)
+                    // Picture thumbnails gallery
                     val reviewPictures = remember(review) {
                         val list = mutableListOf<PictureItem>()
                         if (review.pictures.isNotEmpty()) list.addAll(review.pictures)
@@ -999,7 +848,7 @@ fun ReviewsScreen(
                         }
                     }
 
-                    // Card Footer (IMG_9632.PNG)
+                    // Card Footer
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

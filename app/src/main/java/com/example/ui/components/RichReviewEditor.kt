@@ -31,11 +31,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.text.BasicTextField
@@ -77,8 +79,12 @@ fun RichReviewEditor(
     var authorName by remember { mutableStateOf(initialReview?.authorName ?: "Verified Reviewer") }
     var rating by remember { mutableIntStateOf(initialReview?.rating ?: 5) }
 
+    val cfg = LocalConfiguration.current
+    val isTablet = cfg.screenWidthDp >= 600 || cfg.smallestScreenWidthDp >= 600
+    val defaultZoom = if (isTablet) 105 else 85
+
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
-    var zoomPercent by remember { mutableStateOf(85) }
+    var zoomPercent by rememberSaveable(isTablet) { mutableIntStateOf(defaultZoom) }
     var showZoomMenu by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
@@ -476,11 +482,11 @@ fun RichReviewEditor(
                                         expanded = showZoomMenu,
                                         onDismissRequest = { showZoomMenu = false }
                                     ) {
-                                        listOf(50, 65, 75, 85, 100, 115, 130, 150, 200).forEach { preset ->
+                                        listOf(50, 65, 75, 85, 100, 105, 115, 130, 150, 200).forEach { preset ->
                                             DropdownMenuItem(
                                                 text = {
                                                     Text(
-                                                        text = if (preset == 85) "$preset% (Default)" else "$preset%",
+                                                        text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
                                                         fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
                                                         fontSize = 12.sp,
                                                         color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
@@ -692,7 +698,7 @@ fun RichReviewEditor(
                         .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
                         .clip(RoundedCornerShape(12.dp))
                 ) {
-                    val editorHtml = remember { buildEditorHtml(initialBodyHtml) }
+                    val editorHtml = remember(defaultZoom) { buildEditorHtml(initialBodyHtml, initialZoom = defaultZoom) }
 
                     AndroidView(
                         factory = { ctx ->
@@ -910,7 +916,7 @@ private fun ToolbarIconButton(icon: androidx.compose.ui.graphics.vector.ImageVec
 /**
  * Builds HTML document with rich contentEditable editor & interactive table operations.
  */
-private fun buildEditorHtml(initialContent: String): String {
+private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): String {
     return """
         <!DOCTYPE html>
         <html>
@@ -920,7 +926,7 @@ private fun buildEditorHtml(initialContent: String): String {
             * { box-sizing: border-box; }
             html, body {
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-              zoom: 85%;
+              zoom: ${initialZoom}%;
               margin: 0;
               padding: 0;
               color: #1e293b;

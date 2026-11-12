@@ -79,7 +79,8 @@ fun ActiveTabContent(
                     onProductClick = { viewModel.showProductDetail(it) },
                     onEditProduct = { viewModel.showEditProduct(it) },
                     onReviewClick = { viewModel.showReviewDetail(it) },
-                    onOpenAddReview = { viewModel.openAddReviewDialog(it) }
+                    onOpenAddReview = { viewModel.openAddReviewDialog(it) },
+                    isTabletMode = isDesktopMode
                 )
             }
             AppNavTab.SMART_ADD -> {
@@ -109,7 +110,8 @@ fun ActiveTabContent(
                     },
                     onUpdateProductTags = { prodId, tags ->
                         viewModel.updateProductTags(prodId, tags)
-                    }
+                    },
+                    isTabletMode = isDesktopMode
                 )
             }
             AppNavTab.ADD_PRODUCT -> {

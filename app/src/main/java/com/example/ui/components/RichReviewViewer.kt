@@ -22,9 +22,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -188,8 +190,11 @@ fun RichReviewViewerContent(
         list
     }
 
-    // Zoom scaling state (Word-style zoom: default 85% for compact mobile comfort)
-    var zoomPercent by remember { mutableIntStateOf(85) }
+    // Zoom scaling state (Default 105% in tablet mode, 85% on phone)
+    val cfg = LocalConfiguration.current
+    val isTablet = isTwoPane || cfg.screenWidthDp >= 600 || cfg.smallestScreenWidthDp >= 600
+    val defaultZoom = if (isTablet) 105 else 85
+    var zoomPercent by rememberSaveable(isTablet, review.id) { mutableIntStateOf(defaultZoom) }
     var showZoomMenu by remember { mutableStateOf(false) }
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
     var isPageLoading by remember { mutableStateOf(true) }
@@ -197,13 +202,14 @@ fun RichReviewViewerContent(
     var webViewReloadKey by remember(review.id) { mutableIntStateOf(0) }
 
     // Build the complete unified scrollable HTML document (Header Card + Full Article Body)
-    val htmlDocument = remember(review, displayTitle, linkedProduct, formattedDate, allReviewPictures) {
+    val htmlDocument = remember(review, displayTitle, linkedProduct, formattedDate, allReviewPictures, defaultZoom) {
         buildViewerHtml(
             review = review,
             displayTitle = displayTitle,
             linkedProduct = linkedProduct,
             formattedDate = formattedDate,
-            allPictures = allReviewPictures
+            allPictures = allReviewPictures,
+            initialZoom = defaultZoom
         )
     }
 
@@ -319,11 +325,11 @@ fun RichReviewViewerContent(
                                             expanded = showZoomMenu,
                                             onDismissRequest = { showZoomMenu = false }
                                         ) {
-                                            listOf(50, 65, 75, 85, 100, 115, 130, 150, 200).forEach { preset ->
+                                            listOf(50, 65, 75, 85, 100, 105, 115, 130, 150, 200).forEach { preset ->
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
-                                                            text = if (preset == 85) "$preset% (Default)" else "$preset%",
+                                                            text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
                                                             fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
                                                             fontSize = 12.sp,
                                                             color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
@@ -794,7 +800,8 @@ private fun buildViewerHtml(
     displayTitle: String,
     linkedProduct: ProductItem?,
     formattedDate: String,
-    allPictures: List<PictureItem>
+    allPictures: List<PictureItem>,
+    initialZoom: Int = 85
 ): String {
     // Pre-populate webViewImageFileCache with all pictures for O(1) instantaneous lookup
     allPictures.forEach { pic ->
@@ -1010,7 +1017,7 @@ private fun buildViewerHtml(
               line-height: 1.55;
               width: 100%;
               -webkit-overflow-scrolling: touch;
-              zoom: 85%;
+              zoom: ${initialZoom}%;
             }
             
             .page-container {

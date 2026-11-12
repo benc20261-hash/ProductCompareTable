@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +65,10 @@ fun CompareScreen(
     onEditProduct: (ProductItem) -> Unit = {},
     onReviewClick: (ReviewItem) -> Unit = {},
     onOpenAddReview: (ProductItem) -> Unit = {},
+    isTabletMode: Boolean = run {
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        cfg.screenWidthDp >= 600 || cfg.smallestScreenWidthDp >= 600
+    },
     modifier: Modifier = Modifier
 ) {
     // Record slot product IDs (nullable: null means empty slot waiting for selection)
@@ -104,6 +109,9 @@ fun CompareScreen(
     var fullScreenPictureUrl by remember { mutableStateOf<String?>(null) }
     var showClearAllConfirm by remember { mutableStateOf(false) }
     var slotToRemoveIndex by remember { mutableStateOf<Int?>(null) }
+    val defaultZoom = if (isTabletMode) 60 else 100
+    var zoomPercent by rememberSaveable(isTabletMode) { mutableIntStateOf(defaultZoom) }
+    var showZoomMenu by remember { mutableStateOf(false) }
 
     // Higher / Lower sorting preferences per spec (defaults to "higher")
     val specSortModes = remember { mutableStateMapOf<String, String>() }
@@ -388,12 +396,16 @@ fun CompareScreen(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(com.example.ui.theme.AppColors.CanvasBackground)
+            .background(com.example.ui.theme.AppColors.CanvasBackground),
+        contentAlignment = Alignment.TopCenter
     ) {
         val isLaptop = maxWidth >= 840.dp
+        val maxContentWidth = (maxWidth * (zoomPercent / 100f)).coerceAtLeast(360.dp)
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .widthIn(max = maxContentWidth)
+                .fillMaxHeight(),
             contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -421,43 +433,114 @@ fun CompareScreen(
 
                 Spacer(Modifier.height(4.dp))
 
-                // Actions Row: + Add record and Clear all (Screenshot 1)
+                // Actions Row: + Add record, Clear all, and Zoom pill [- 100% +]
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        onClick = {
-                            if (recordSlots.size < 5) {
-                                val updated = recordSlots.toMutableList()
-                                updated.add(null)
-                                recordSlots = updated
-                            }
-                        },
-                        enabled = recordSlots.size < 5,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
-                        shape = RoundedCornerShape(20.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("compare_add_record_btn").height(38.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        ButtonText("Add record", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Button(
+                            onClick = {
+                                if (recordSlots.size < 5) {
+                                    val updated = recordSlots.toMutableList()
+                                    updated.add(null)
+                                    recordSlots = updated
+                                }
+                            },
+                            enabled = recordSlots.size < 5,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
+                            shape = RoundedCornerShape(20.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier.testTag("compare_add_record_btn").height(38.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            ButtonText("Add record", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        if (recordSlots.any { it != null }) {
+                            OutlinedButton(
+                                onClick = { showClearAllConfirm = true },
+                                shape = RoundedCornerShape(20.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64748B)),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                modifier = Modifier.height(38.dp)
+                            ) {
+                                Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                ButtonText("Clear all", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                            }
+                        }
                     }
 
-                    if (recordSlots.any { it != null }) {
-                        OutlinedButton(
-                            onClick = { showClearAllConfirm = true },
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF64748B)),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                            modifier = Modifier.height(38.dp)
+                    // Word-Style Zoom Pill [- 100% +] (prevents spraying data over full width)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFF1F5F9),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        modifier = Modifier.height(32.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(1.dp),
+                            modifier = Modifier.padding(horizontal = 2.dp)
                         ) {
-                            Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(4.dp))
-                            ButtonText("Clear all", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                            IconButton(
+                                onClick = {
+                                    zoomPercent = (zoomPercent - 10).coerceAtLeast(50)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Remove, contentDescription = "Zoom out", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                            }
+
+                            Box {
+                                Text(
+                                    text = "${zoomPercent}%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B),
+                                    modifier = Modifier
+                                        .clickable { showZoomMenu = true }
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+
+                                DropdownMenu(
+                                    expanded = showZoomMenu,
+                                    onDismissRequest = { showZoomMenu = false }
+                                ) {
+                                    listOf(50, 60, 65, 75, 85, 100, 115, 130, 150).forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
+                                                    fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 12.sp,
+                                                    color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
+                                                )
+                                            },
+                                            onClick = {
+                                                zoomPercent = preset
+                                                showZoomMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    zoomPercent = (zoomPercent + 10).coerceAtMost(160)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Zoom in", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                            }
                         }
                     }
                 }

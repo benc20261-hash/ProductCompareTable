@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +76,10 @@ fun SmartAddProductScreen(
     onDeleteSpecInline: (productId: String, specName: String) -> Unit,
     onUpdateProductBrand: (productId: String, brand: String) -> Unit,
     onUpdateProductTags: (productId: String, tags: List<String>) -> Unit,
+    isTabletMode: Boolean = run {
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        cfg.screenWidthDp >= 600 || cfg.smallestScreenWidthDp >= 600
+    },
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -86,6 +91,9 @@ fun SmartAddProductScreen(
     val context = LocalContext.current
     var showResetSlotsConfirm by remember { mutableStateOf(false) }
     var specToDeleteInline by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val defaultZoom = if (isTabletMode) 60 else 100
+    var zoomPercent by rememberSaveable(isTabletMode) { mutableIntStateOf(defaultZoom) }
+    var showZoomMenu by remember { mutableStateOf(false) }
 
     // Slots tracking (Screenshot 2.png)
     // Slots tracking (Screenshot 2.png) - Single reactive source of truth
@@ -216,14 +224,22 @@ fun SmartAddProductScreen(
 
     val filledSlotsCount = productSlots.filterNotNull().size
 
-    LazyColumn(
-        state = listState,
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(com.example.ui.theme.AppColors.CanvasBackground),
-        contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        contentAlignment = Alignment.TopCenter
     ) {
+        val maxContentWidth = (maxWidth * (zoomPercent / 100f)).coerceAtLeast(360.dp)
+
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .widthIn(max = maxContentWidth)
+                .fillMaxHeight(),
+            contentPadding = com.example.ui.theme.AppSpacing.ScreenContentPaddingScrollable,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
         // =================================================================
         // 1. SMART ADD & SPECIFICATION WORKSPACE HEADER (d8 in recordcompare-1.ai.studio)
         // =================================================================
@@ -267,47 +283,119 @@ fun SmartAddProductScreen(
                         }
                     }
 
-                    // Slot Action Controls Row
+                    // Slot Action Controls Row with Word-Style Zoom Pill [- 100% +]
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (productSlots.size > 2) {
-                            OutlinedButton(
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (productSlots.size > 2) {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (productSlots.size > 2) {
+                                            slotToRemoveIndex = productSlots.size - 1
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = Color(0xFFE11D48)
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECDD3)),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Remove last", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            Button(
                                 onClick = {
-                                    if (productSlots.size > 2) {
-                                        slotToRemoveIndex = productSlots.size - 1
-                                    }
+                                    productSlots.add(null)
+                                    slotPickerIndex = productSlots.size - 1
+                                    searchQuery = ""
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = Color(0xFFE11D48)
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF4F46E5),
+                                    contentColor = Color.White
                                 ),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFECDD3)),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                             ) {
-                                Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Remove last", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Add product slot", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
-                        Button(
-                            onClick = {
-                                productSlots.add(null)
-                                slotPickerIndex = productSlots.size - 1
-                                searchQuery = ""
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4F46E5),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                        // Word-Style Zoom Pill [- 100% +]
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF1F5F9),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            modifier = Modifier.height(32.dp)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Add product slot", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        zoomPercent = (zoomPercent - 10).coerceAtLeast(50)
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Zoom out", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                                }
+
+                                Box {
+                                    Text(
+                                        text = "${zoomPercent}%",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1E293B),
+                                        modifier = Modifier
+                                            .clickable { showZoomMenu = true }
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+
+                                    DropdownMenu(
+                                        expanded = showZoomMenu,
+                                        onDismissRequest = { showZoomMenu = false }
+                                    ) {
+                                        listOf(50, 60, 65, 75, 85, 100, 115, 130, 150).forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
+                                                        fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
+                                                        fontSize = 12.sp,
+                                                        color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    zoomPercent = preset
+                                                    showZoomMenu = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        zoomPercent = (zoomPercent + 10).coerceAtMost(160)
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Zoom in", modifier = Modifier.size(13.dp), tint = Color(0xFF334155))
+                                }
+                            }
                         }
                     }
                 }
@@ -2081,6 +2169,7 @@ fun SmartAddProductScreen(
                 }
             }
         }
+    }
     }
 
     selectedProductForSpecOrder?.let { prod ->
