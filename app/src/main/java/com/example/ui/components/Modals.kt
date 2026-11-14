@@ -29,11 +29,13 @@ import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -130,6 +132,13 @@ fun ProductDetailPaneContent(
     var activeLightboxImages by remember { mutableStateOf<List<PictureItem>?>(null) }
     var activeLightboxIndex by remember { mutableIntStateOf(0) }
 
+    val configuration = LocalConfiguration.current
+    val isTabletMode = isTwoPane || configuration.screenWidthDp >= 600 || configuration.smallestScreenWidthDp >= 600
+    val defaultZoom = if (isTabletMode) 60 else 100
+    var zoomPercent by rememberSaveable(isTabletMode, product.id) { mutableIntStateOf(defaultZoom) }
+    var showZoomMenu by remember { mutableStateOf(false) }
+    val maxContentWidth = (configuration.screenWidthDp.dp * (zoomPercent / 100f)).coerceAtLeast(360.dp)
+
     val formattedCreatedDate = remember(product.createdTime) {
         formatBeautifulDate(product.createdTime)
     }
@@ -190,11 +199,87 @@ fun ProductDetailPaneContent(
                             )
                         }
 
-                            // Right Section: Review, Edit, Compare, Delete, Close
+                            // Right Section: Zoom, Review, Edit, Compare, Delete, Close
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                // Zoom Control Pill: - 60% +
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFF1F5F9),
+                                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                    modifier = Modifier.height(30.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(1.dp),
+                                        modifier = Modifier.padding(horizontal = 2.dp)
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                zoomPercent = (zoomPercent - 10).coerceAtLeast(50)
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Remove,
+                                                contentDescription = "Zoom out",
+                                                modifier = Modifier.size(13.dp),
+                                                tint = Color(0xFF334155)
+                                            )
+                                        }
+
+                                        Box {
+                                            Text(
+                                                text = "${zoomPercent}%",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E293B),
+                                                modifier = Modifier
+                                                    .clickable { showZoomMenu = true }
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            )
+
+                                            DropdownMenu(
+                                                expanded = showZoomMenu,
+                                                onDismissRequest = { showZoomMenu = false }
+                                            ) {
+                                                listOf(50, 60, 65, 75, 85, 100, 115, 130, 150).forEach { preset ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = if (preset == defaultZoom) "$preset% (Default)" else "$preset%",
+                                                                fontWeight = if (preset == zoomPercent) FontWeight.Bold else FontWeight.Normal,
+                                                                fontSize = 12.sp,
+                                                                color = if (preset == zoomPercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            zoomPercent = preset
+                                                            showZoomMenu = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                zoomPercent = (zoomPercent + 10).coerceAtMost(160)
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "Zoom in",
+                                                modifier = Modifier.size(13.dp),
+                                                tint = Color(0xFF334155)
+                                            )
+                                        }
+                                    }
+                                }
+
                                 // 1. Review button (indigo pill)
                                 Surface(
                                     onClick = onAddReview,
@@ -305,13 +390,20 @@ fun ProductDetailPaneContent(
                     }
                 }
             ) { innerPadding ->
-                LazyColumn(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    contentAlignment = Alignment.TopCenter
                 ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .widthIn(max = maxContentWidth)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
                     // Top Hero Picture Card
                     item {
                         Card(
@@ -1098,6 +1190,7 @@ fun ProductDetailPaneContent(
                 }
             }
         }
+    }
 
         if (showDeleteConfirm) {
             DeleteConfirmDialog(
