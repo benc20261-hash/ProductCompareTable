@@ -1,5 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -12,12 +17,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Scale
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,200 +55,295 @@ fun ComparisonTray(
 ) {
     var productToRemove by remember { mutableStateOf<ProductItem?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var isCollapsed by rememberSaveable { mutableStateOf(false) }
 
     if (selectedProducts.isEmpty()) return
 
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xF20F172A),
-        shadowElevation = 12.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
-            .testTag("comparison_tray")
+            .testTag("comparison_tray"),
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        // ── Collapsed / Minimized Pill ──────────────────────────────────────────
+        AnimatedVisibility(
+            visible = isCollapsed,
+            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
         ) {
-            // Row of selected product chips
-            Row(
+            Surface(
+                shape = RoundedCornerShape(50.dp),
+                color = Color(0xF20F172A),
+                shadowElevation = 10.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4F46E5)),
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .wrapContentWidth()
+                    .clickable { isCollapsed = false }
             ) {
-                // Badge
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF1E293B)
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Scale,
-                            contentDescription = null,
-                            tint = Color(0xFF818CF8),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            "${selectedProducts.size} Selected",
-                            color = Color(0xFFE2E8F0),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Icon(
+                        Icons.Default.Scale,
+                        contentDescription = null,
+                        tint = Color(0xFF818CF8),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        "${selectedProducts.size} Selected",
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Divider dot
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF475569))
+                    )
+                    // Quick Compare Now
+                    Text(
+                        "Compare Now",
+                        color = Color(0xFF818CF8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable {
+                            isCollapsed = false
+                            if (selectedProducts.size >= 2) onCompareNow()
+                        }
+                    )
+                    // Expand icon
+                    Icon(
+                        Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Expand tray",
+                        tint = Color(0xFF94A3B8),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
+            }
+        }
 
-                // Chips
-                selectedProducts.forEach { p ->
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF1E293B),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+        // ── Expanded Full Tray ──────────────────────────────────────────────────
+        AnimatedVisibility(
+            visible = !isCollapsed,
+            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xF20F172A),
+                shadowElevation = 12.dp,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Row of selected product chips + collapse button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(start = 4.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Badge
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1E293B)
                         ) {
-                            val firstPic = p.pictures.firstOrNull()?.url
-                            val firstPicName = p.pictures.firstOrNull()?.name
-                            val context = LocalContext.current
-                            if (!firstPic.isNullOrBlank() || !firstPicName.isNullOrBlank()) {
-                                SubcomposeAsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data(resolveImageModel(context, firstPic ?: "", preferredName = firstPicName))
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = p.name,
-                                    contentScale = ContentScale.Fit,
-                                    error = {
-                                        DeviceGraphicPlaceholder(
-                                            title = p.name,
-                                            brand = p.brand,
-                                            tags = p.tags,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFF8FAFC))
-                                        .padding(1.dp)
-                                )
-                            } else {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFF334155),
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    DeviceGraphicPlaceholder(
-                                        title = p.name,
-                                        brand = p.brand,
-                                        tags = p.tags,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = p.name,
-                                color = Color(0xFFF1F5F9),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 100.dp)
-                            )
-
-                            // Unselect / Remove button
-                            IconButton(
-                                onClick = { productToRemove = p },
-                                modifier = Modifier.size(20.dp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Remove ${p.name}",
-                                    tint = Color(0xFF94A3B8),
-                                    modifier = Modifier.size(12.dp)
+                                    Icons.Default.Scale,
+                                    contentDescription = null,
+                                    tint = Color(0xFF818CF8),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    "${selectedProducts.size} Selected",
+                                    color = Color(0xFFE2E8F0),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
+
+                        // Chips
+                        selectedProducts.forEach { p ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF1E293B),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(start = 4.dp, end = 6.dp, top = 3.dp, bottom = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    val firstPic = p.pictures.firstOrNull()?.url
+                                    val firstPicName = p.pictures.firstOrNull()?.name
+                                    val context = LocalContext.current
+                                    if (!firstPic.isNullOrBlank() || !firstPicName.isNullOrBlank()) {
+                                        SubcomposeAsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(resolveImageModel(context, firstPic ?: "", preferredName = firstPicName))
+                                                .crossfade(true)
+                                                .build(),
+                                            contentDescription = p.name,
+                                            contentScale = ContentScale.Fit,
+                                            error = {
+                                                DeviceGraphicPlaceholder(
+                                                    title = p.name,
+                                                    brand = p.brand,
+                                                    tags = p.tags,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFFF8FAFC))
+                                                .padding(1.dp)
+                                        )
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF334155),
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            DeviceGraphicPlaceholder(
+                                                title = p.name,
+                                                brand = p.brand,
+                                                tags = p.tags,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+
+                                    Text(
+                                        text = p.name,
+                                        color = Color(0xFFF1F5F9),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.widthIn(max = 100.dp)
+                                    )
+
+                                    // Unselect / Remove button
+                                    IconButton(
+                                        onClick = { productToRemove = p },
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Remove ${p.name}",
+                                            tint = Color(0xFF94A3B8),
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
-            }
 
-            // Bottom action buttons: Clear all, Smart Add, Compare Now
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = { showClearConfirm = true },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Clear all",
-                        tint = Color(0xFFF87171),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Smart Add button
-                    OutlinedButton(
-                        onClick = onOpenSmartAdd,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0xFF1E293B),
-                            contentColor = Color(0xFFFCD34D)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x60FCD34D)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
+                    // Bottom action buttons: Collapse, Clear all, Smart Add, Compare Now
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = Color(0xFFFCD34D),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        ButtonText("Smart Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFCD34D))
-                    }
+                        // Left: Collapse + Clear All
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(0.dp)
+                        ) {
+                            // Collapse / Hide button
+                            IconButton(
+                                onClick = { isCollapsed = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Minimize tray",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
 
-                    // Compare Now button
-                    Button(
-                        onClick = onCompareNow,
-                        enabled = selectedProducts.size >= 2,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4F46E5),
-                            contentColor = Color.White,
-                            disabledContainerColor = Color(0xFF312E81).copy(alpha = 0.5f),
-                            disabledContentColor = Color.White.copy(alpha = 0.5f)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        ButtonText("Compare Now", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
+                            // Clear All button
+                            IconButton(
+                                onClick = { showClearConfirm = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Clear all",
+                                    tint = Color(0xFFF87171),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Smart Add button
+                            OutlinedButton(
+                                onClick = onOpenSmartAdd,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = Color(0xFF1E293B),
+                                    contentColor = Color(0xFFFCD34D)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x60FCD34D)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFCD34D),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                ButtonText("Smart Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFCD34D))
+                            }
+
+                            // Compare Now button
+                            Button(
+                                onClick = onCompareNow,
+                                enabled = selectedProducts.size >= 2,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF4F46E5),
+                                    contentColor = Color.White,
+                                    disabledContainerColor = Color(0xFF312E81).copy(alpha = 0.5f),
+                                    disabledContentColor = Color.White.copy(alpha = 0.5f)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                ButtonText("Compare Now", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -46,10 +46,13 @@ import com.example.model.ProductItem
 import com.example.model.SpecificationItem
 import com.example.model.copyPickedUriToPermanentStorage
 import com.example.model.resolveImageModel
+import com.example.ui.components.DashedDropzoneBox
 import com.example.ui.components.DeleteConfirmDialog
 import com.example.ui.components.FormattedSpecHtml
 import com.example.ui.components.FullScreenPhotoLightbox
 import com.example.ui.components.HtmlWysiwygEditor
+import com.example.ui.components.PhotoThumbnailItem
+import com.example.ui.components.SpecificationFormContent
 import com.example.ui.components.SpecUnitBadge
 import com.example.ui.components.htmlToPlainText
 import kotlinx.coroutines.launch
@@ -1156,44 +1159,19 @@ fun ProductWorkspaceScreen(
                         // Display selected pictures if any
                         if (productPictures.isNotEmpty()) {
                             LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(top = 6.dp)
                             ) {
                                 itemsIndexed(productPictures) { pIdx, pic ->
-                                    Box(
-                                        modifier = Modifier
-                                            .size(76.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(Color(0xFFF8FAFC))
-                                            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(10.dp))
-                                            .clickable {
-                                                activeLightboxImages = productPictures.toList()
-                                                activeLightboxIndex = pIdx
-                                            }
-                                            .padding(3.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AsyncImage(
-                                            model = resolveImageModel(context, pic.url, preferredName = pic.name),
-                                            contentDescription = pic.name,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                        IconButton(
-                                            onClick = { pictureToRemove = pic },
-                                            modifier = Modifier
-                                                .size(22.dp)
-                                                .align(Alignment.TopEnd)
-                                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Remove",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                    }
+                                    PhotoThumbnailItem(
+                                        picture = pic,
+                                        onPhotoClick = {
+                                            activeLightboxImages = productPictures.toList()
+                                            activeLightboxIndex = pIdx
+                                        },
+                                        onRemoveClick = { pictureToRemove = pic },
+                                        size = 120.dp
+                                    )
                                 }
                             }
                         }
@@ -1407,263 +1385,40 @@ fun ProductWorkspaceScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // Specification name field
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("Specification name", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
-                                    OutlinedTextField(
-                                        value = spec.specName,
-                                        onValueChange = { newName ->
-                                            specsList[index] = spec.copy(specName = newName)
-                                        },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.fillMaxWidth().testTag("spec_name_input_$index"),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            unfocusedBorderColor = Color(0xFFE2E8F0),
-                                            focusedBorderColor = Color(0xFF0F172A)
+                                SpecificationFormContent(
+                                    specName = spec.specName,
+                                    onSpecNameChange = { newName ->
+                                        specsList[index] = spec.copy(specName = newName)
+                                    },
+                                    unit = spec.unit ?: "",
+                                    onUnitChange = { newUnit ->
+                                        specsList[index] = spec.copy(unit = newUnit.ifBlank { null })
+                                    },
+                                    details = spec.details,
+                                    onDetailsChange = { newDetails ->
+                                        specsList[index] = spec.copy(details = newDetails)
+                                    },
+                                    isNumeric = spec.isNumeric,
+                                    onIsNumericChange = { newNumeric ->
+                                        specsList[index] = spec.copy(isNumeric = newNumeric)
+                                    },
+                                    pictures = spec.pictures,
+                                    onPickPicturesClick = {
+                                        selectedSpecIndex = index
+                                        specPhotoPicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                         )
-                                    )
-                                }
-
-                                // Unit (optional) field
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("Unit (optional)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
-                                        Text("e.g. g, inch, cm", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                                    }
-
-                                    OutlinedTextField(
-                                        value = spec.unit ?: "",
-                                        onValueChange = { newUnit ->
-                                            specsList[index] = spec.copy(unit = newUnit.ifBlank { null })
-                                        },
-                                        placeholder = { Text("g, inch, cm, year, mAh...", color = Color(0xFF94A3B8), fontSize = 13.sp) },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp),
-                                        modifier = Modifier.fillMaxWidth().testTag("spec_unit_input_$index"),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            unfocusedBorderColor = Color(0xFFE2E8F0),
-                                            focusedBorderColor = Color(0xFF0F172A)
-                                        )
-                                    )
-
-                                    // Quick unit: row of pills
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .horizontalScroll(rememberScrollState())
-                                            .padding(top = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text("Quick unit:", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
-                                        PRESET_QUICK_UNITS.forEach { qUnit ->
-                                            Surface(
-                                                shape = RoundedCornerShape(8.dp),
-                                                color = if (spec.unit == qUnit) Color(0xFF0F172A) else Color(0xFFF1F5F9),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                                modifier = Modifier
-                                                    .clickable {
-                                                        specsList[index] = spec.copy(unit = qUnit)
-                                                    }
-                                            ) {
-                                                Text(
-                                                    text = qUnit,
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = if (spec.unit == qUnit) Color.White else Color(0xFF334155),
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Specification details/value field with WYSIWYG Editor
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text("Specification details", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
-                                        Text("WYSIWYG: Bold, underline, list & links", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                                    }
-
-                                    HtmlWysiwygEditor(
-                                        value = spec.details,
-                                        onChange = { newDetails ->
-                                            specsList[index] = spec.copy(details = newDetails)
-                                        },
-                                        placeholder = "e.g. 60hour, Bluetooth, stick to phone, and ambient",
-                                        minHeight = 100.dp,
-                                        testTagPrefix = "spec_details_$index"
-                                    )
-
-                                    // Numeric Comparison Override Selector
-                                    val hasNumericCandidate = remember(spec.details) {
-                                        val clean = htmlToPlainText(spec.details)
-                                        !clean.contains('\n') && !clean.contains('•') && clean.length <= 45 && Regex("[0-9]").containsMatchIn(clean)
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = Color(0xFFF8FAFC),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
-                                    ) {
-                                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                                ) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        color = when (spec.isNumeric) {
-                                                            true -> Color(0xFF4F46E5)
-                                                            false -> Color(0xFF475569)
-                                                            null -> Color(0xFF0F172A)
-                                                        },
-                                                        modifier = Modifier.size(26.dp)
-                                                    ) {
-                                                        Box(contentAlignment = Alignment.Center) {
-                                                            Text(
-                                                                text = when (spec.isNumeric) {
-                                                                    true -> "#"
-                                                                    false -> "Aa"
-                                                                    null -> "⚡"
-                                                                },
-                                                                color = Color.White,
-                                                                fontSize = 11.sp,
-                                                                fontWeight = FontWeight.Bold
-                                                            )
-                                                        }
-                                                    }
-                                                    Column {
-                                                        Text(
-                                                            text = when (spec.isNumeric) {
-                                                                true -> "Numeric Comparison (Forced #)"
-                                                                false -> "Text Mode (Forced Aa)"
-                                                                null -> "Auto-Detect Mode"
-                                                            },
-                                                            fontSize = 12.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF0F172A)
-                                                        )
-                                                        Text(
-                                                            text = when (spec.isNumeric) {
-                                                                true -> "Parsed as numeric for matrix sorting & best-value calculation"
-                                                                false -> "Treated strictly as text/descriptive without numeric sorting"
-                                                                null -> if (hasNumericCandidate) "Auto: Candidate number detected in text" else "Auto: Descriptive text format"
-                                                            },
-                                                            fontSize = 10.sp,
-                                                            color = Color(0xFF64748B)
-                                                        )
-                                                    }
-                                                }
-                                            }
-
-                                            // Mode selection chips: Auto / Number / Text
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                            ) {
-                                                listOf(
-                                                    Triple("Auto", null, "auto_btn_$index"),
-                                                    Triple("Number (#)", true, "num_btn_$index"),
-                                                    Triple("Text (Aa)", false, "text_btn_$index")
-                                                ).forEach { (label, value, tag) ->
-                                                    val isSelected = spec.isNumeric == value
-                                                    Surface(
-                                                        shape = RoundedCornerShape(8.dp),
-                                                        color = if (isSelected) Color(0xFF0F172A) else Color.White,
-                                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) Color(0xFF0F172A) else Color(0xFFCBD5E1)),
-                                                        modifier = Modifier
-                                                            .weight(1f)
-                                                            .clickable {
-                                                                specsList[index] = spec.copy(isNumeric = value)
-                                                            }
-                                                            .testTag(tag)
-                                                    ) {
-                                                        Text(
-                                                            text = label,
-                                                            modifier = Modifier.padding(vertical = 6.dp),
-                                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                            fontSize = 11.sp,
-                                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                                            color = if (isSelected) Color.White else Color(0xFF334155)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Specification pictures
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Specification pictures", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF334155))
-
-                                    DashedDropzoneBox(
-                                        buttonText = "Choose pictures",
-                                        helperText = "Tap to select from photo library or drop files here",
-                                        onPickClick = {
-                                            selectedSpecIndex = index
-                                            specPhotoPicker.launch(
-                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                            )
-                                        },
-                                        testTag = "spec_pic_dropzone_$index"
-                                    )
-
-                                    if (spec.pictures.isNotEmpty()) {
-                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            itemsIndexed(spec.pictures) { spIdx, spPic ->
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(60.dp)
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                        .background(Color(0xFFF8FAFC))
-                                                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp))
-                                                        .clickable {
-                                                            activeLightboxImages = spec.pictures
-                                                            activeLightboxIndex = spIdx
-                                                        }
-                                                        .padding(2.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    AsyncImage(
-                                                        model = resolveImageModel(context, spPic.url, preferredName = spPic.name),
-                                                        contentDescription = spPic.name,
-                                                        contentScale = ContentScale.Fit,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                    IconButton(
-                                                        onClick = {
-                                                            val updated = spec.pictures.filter { it.id != spPic.id }
-                                                            specsList[index] = spec.copy(pictures = updated)
-                                                        },
-                                                        modifier = Modifier
-                                                            .size(18.dp)
-                                                            .align(Alignment.TopEnd)
-                                                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                                    ) {
-                                                        Icon(Icons.Default.Close, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                    },
+                                    onRemovePictureClick = { spPic ->
+                                        val updated = spec.pictures.filter { it.id != spPic.id }
+                                        specsList[index] = spec.copy(pictures = updated)
+                                    },
+                                    onPictureClick = { _, spIdx ->
+                                        activeLightboxImages = spec.pictures
+                                        activeLightboxIndex = spIdx
+                                    },
+                                    testTagPrefix = "spec_$index"
+                                )
 
                                 // Footer row: Specification #2      [Delete specification]
                                 Row(

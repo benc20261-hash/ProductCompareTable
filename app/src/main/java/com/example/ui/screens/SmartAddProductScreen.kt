@@ -42,16 +42,21 @@ import com.example.model.SpecificationItem
 import com.example.ui.components.AppSummaryCard
 import com.example.model.resolveImageModel
 import com.example.ui.components.ButtonText
+import com.example.ui.components.DashedDropzoneBox
 import com.example.ui.components.DeleteConfirmDialog
 import com.example.ui.components.DeviceGraphicPlaceholder
 import com.example.ui.components.FormattedSpecHtml
+import com.example.ui.components.FullScreenPhotoLightbox
 import com.example.ui.components.HtmlWysiwygEditor
+import com.example.ui.components.PhotoThumbnailItem
 import com.example.ui.components.SpecUnitBadge
 import com.example.ui.components.SpecificationsOrderModal
 import com.example.ui.components.TagBrandProductFilter
 import com.example.ui.components.AddSpecModal
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.ui.text.font.FontFamily
 import com.example.util.computeHierarchicalSpecOrder
 import com.example.util.buildInheritedBlankSpecs
@@ -146,16 +151,20 @@ fun SmartAddProductScreen(
     var editingBrandProductId by remember { mutableStateOf<String?>(null) }
     var editingBrandText by remember { mutableStateOf("") }
 
-    // Photo picker for inline spec editor (Copies permanently to disk)
+    // Photo picker for inline spec editor — multi-select (Copies permanently to disk)
     val photoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri?.let {
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
             inlineSpecPictures.add(
-                com.example.model.copyPickedUriToPermanentStorage(context, it, prefix = "spec_pic")
+                com.example.model.copyPickedUriToPermanentStorage(context, uri, prefix = "spec_pic")
             )
         }
     }
+
+    // Lightbox state for inline spec pictures
+    var specLightboxImages by remember { mutableStateOf<List<PictureItem>?>(null) }
+    var specLightboxIndex by remember { mutableIntStateOf(0) }
 
     // Filtered products for checklist
     val filteredProducts = remember(allAvailableProducts, searchQuery, selectedTagFilter) {
@@ -1865,77 +1874,38 @@ fun SmartAddProductScreen(
                                             }
 
                                             // 5. Specification pictures
-                                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                                 Text(
                                                     "Specification pictures",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 13.sp,
-                                                    color = Color(0xFF0F172A)
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFF334155)
                                                 )
-                                                OutlinedButton(
-                                                    onClick = {
+                                                DashedDropzoneBox(
+                                                    buttonText = "Choose pictures",
+                                                    helperText = "Tap to select from photo library or drop files here",
+                                                    onPickClick = {
                                                         photoPickerLauncher.launch(
                                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                                         )
                                                     },
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF8FAFC)),
-                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Outlined.Image,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(16.dp),
-                                                        tint = Color(0xFF475569)
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(
-                                                        "Upload pictures",
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = Color(0xFF334155)
-                                                    )
-                                                }
-
+                                                    testTag = "smart_add_spec_dropzone"
+                                                )
                                                 if (inlineSpecPictures.isNotEmpty()) {
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .horizontalScroll(rememberScrollState()),
-                                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                    LazyRow(
+                                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                        modifier = Modifier.padding(top = 4.dp)
                                                     ) {
-                                                        inlineSpecPictures.forEachIndexed { picIdx, pic ->
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(60.dp)
-                                                                    .clip(RoundedCornerShape(8.dp))
-                                                                    .background(Color(0xFFF8FAFC))
-                                                                    .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-                                                            ) {
-                                                                AsyncImage(
-                                                                    model = resolveImageModel(LocalContext.current, pic.url, pic.name),
-                                                                    contentDescription = pic.name,
-                                                                    modifier = Modifier.fillMaxSize(),
-                                                                    contentScale = ContentScale.Crop
-                                                                )
-                                                                Surface(
-                                                                    shape = CircleShape,
-                                                                    color = Color(0xCC000000),
-                                                                    modifier = Modifier
-                                                                        .size(18.dp)
-                                                                        .align(Alignment.TopEnd)
-                                                                        .padding(2.dp)
-                                                                        .clickable { inlineSpecPictures.removeAt(picIdx) }
-                                                                ) {
-                                                                    Icon(
-                                                                        Icons.Default.Close,
-                                                                        contentDescription = "Remove",
-                                                                        tint = Color.White,
-                                                                        modifier = Modifier.size(12.dp)
-                                                                    )
-                                                                }
-                                                            }
+                                                        itemsIndexed(inlineSpecPictures) { picIdx, pic ->
+                                                            PhotoThumbnailItem(
+                                                                picture = pic,
+                                                                onPhotoClick = {
+                                                                    specLightboxImages = inlineSpecPictures.toList()
+                                                                    specLightboxIndex = picIdx
+                                                                },
+                                                                onRemoveClick = { inlineSpecPictures.removeAt(picIdx) },
+                                                                size = 120.dp
+                                                            )
                                                         }
                                                     }
                                                 }
@@ -2023,32 +1993,19 @@ fun SmartAddProductScreen(
                                         }
 
                                         if (existingSpec.pictures.isNotEmpty()) {
-                                            Row(
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .horizontalScroll(rememberScrollState())
-                                                    .padding(vertical = 2.dp)
+                                            LazyRow(
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                modifier = Modifier.padding(vertical = 4.dp)
                                             ) {
-                                                existingSpec.pictures.forEach { pic ->
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(width = 64.dp, height = 52.dp)
-                                                            .clip(RoundedCornerShape(8.dp))
-                                                            .background(Color(0xFFF8FAFC))
-                                                            .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-                                                    ) {
-                                                        AsyncImage(
-                                                            model = resolveImageModel(
-                                                                LocalContext.current,
-                                                                pic.url,
-                                                                preferredName = pic.name
-                                                            ),
-                                                            contentDescription = pic.name,
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            contentScale = ContentScale.Crop
-                                                        )
-                                                    }
+                                                itemsIndexed(existingSpec.pictures) { picIdx, pic ->
+                                                    PhotoThumbnailItem(
+                                                        picture = pic,
+                                                        onPhotoClick = {
+                                                            specLightboxImages = existingSpec.pictures
+                                                            specLightboxIndex = picIdx
+                                                        },
+                                                        size = 100.dp
+                                                    )
                                                 }
                                             }
                                         }
@@ -2282,6 +2239,15 @@ fun SmartAddProductScreen(
                 activeInlineEditKey = null
             },
             onDismiss = { modalSpecItem = null }
+        )
+    }
+
+    // Full-screen photo lightbox for spec pictures
+    specLightboxImages?.let { images ->
+        FullScreenPhotoLightbox(
+            images = images,
+            initialIndex = specLightboxIndex,
+            onDismiss = { specLightboxImages = null }
         )
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -56,6 +57,7 @@ import com.example.model.resolveImageModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 @Composable
 fun ProductDetailModal(
@@ -838,69 +840,27 @@ fun ProductDetailPaneContent(
                                                         SpecUnitBadge(unit = spec.unit, details = spec.details)
                                                     }
 
-                                                    // Thumbnail picture if present
+                                                    // Thumbnail pictures if present
                                                     if (spec.pictures.isNotEmpty()) {
-                                                        val pic = spec.pictures.first()
                                                         Column(
-                                                            modifier = Modifier.padding(top = 4.dp),
-                                                            horizontalAlignment = Alignment.Start
+                                                            modifier = Modifier.padding(top = 6.dp),
+                                                            verticalArrangement = Arrangement.spacedBy(4.dp)
                                                         ) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .size(width = 72.dp, height = 62.dp)
-                                                                    .clip(RoundedCornerShape(10.dp))
-                                                                    .background(Color(0xFFF8FAFC))
-                                                                    .border(
-                                                                        1.dp,
-                                                                        Color(0xFFCBD5E1),
-                                                                        RoundedCornerShape(10.dp)
-                                                                    )
-                                                                    .clickable {
-                                                                        activeLightboxImages = spec.pictures
-                                                                        activeLightboxIndex = 0
-                                                                    }
+                                                            LazyRow(
+                                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                             ) {
-                                                                AsyncImage(
-                                                                    model = resolveImageModel(
-                                                                        LocalContext.current,
-                                                                        pic.url,
-                                                                        preferredName = pic.name
-                                                                    ),
-                                                                    contentDescription = pic.name,
-                                                                    modifier = Modifier.fillMaxSize(),
-                                                                    contentScale = ContentScale.Crop
-                                                                )
-                                                                Surface(
-                                                                    color = Color(0xDD334155),
-                                                                    modifier = Modifier
-                                                                        .fillMaxWidth()
-                                                                        .align(Alignment.BottomCenter)
-                                                                ) {
-                                                                    Text(
-                                                                        text = pic.name.ifBlank {
-                                                                            "IMG_${spec.id.takeLast(4)}"
+                                                                itemsIndexed(spec.pictures) { picIdx, pic ->
+                                                                    PhotoThumbnailItem(
+                                                                        picture = pic,
+                                                                        onPhotoClick = {
+                                                                            activeLightboxImages = spec.pictures
+                                                                            activeLightboxIndex = picIdx
                                                                         },
-                                                                        color = Color.White,
-                                                                        fontSize = 9.sp,
-                                                                        fontWeight = FontWeight.Medium,
-                                                                        maxLines = 1,
-                                                                        overflow = TextOverflow.Ellipsis,
-                                                                        modifier = Modifier.padding(
-                                                                            horizontal = 3.dp,
-                                                                            vertical = 2.dp
-                                                                        ),
-                                                                        textAlign = TextAlign.Center
+                                                                        size = 100.dp
                                                                     )
                                                                 }
                                                             }
-
                                                             Row(
-                                                                modifier = Modifier
-                                                                    .padding(top = 4.dp)
-                                                                    .clickable {
-                                                                        activeLightboxImages = spec.pictures
-                                                                        activeLightboxIndex = 0
-                                                                    },
                                                                 verticalAlignment = Alignment.CenterVertically,
                                                                 horizontalArrangement = Arrangement.spacedBy(3.dp)
                                                             ) {
@@ -911,7 +871,7 @@ fun ProductDetailPaneContent(
                                                                     modifier = Modifier.size(10.dp)
                                                                 )
                                                                 Text(
-                                                                    text = "1-click full screen • Drag left/right • Pinch zoom",
+                                                                    text = "Tap photo to open full screen",
                                                                     fontSize = 10.sp,
                                                                     color = Color(0xFF64748B),
                                                                     lineHeight = 12.sp
@@ -2230,55 +2190,41 @@ fun EditSpecModal(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text("Specification Pictures (${pictures.size})", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF334155))
-                                    OutlinedButton(
-                                        onClick = {
-                                            specPhotoPicker.launch(
-                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                            )
-                                        },
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Add Photos", fontSize = 11.sp)
-                                    }
-                                }
+                                Text("Specification Pictures", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF334155))
+
+                                DashedDropzoneBox(
+                                    buttonText = "Choose pictures",
+                                    helperText = "Tap to select from photo library or drop files here",
+                                    onPickClick = {
+                                        specPhotoPicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    },
+                                    testTag = "edit_spec_dropzone"
+                                )
 
                                 if (pictures.isNotEmpty()) {
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        items(pictures) { pic ->
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(72.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(Color(0xFFF8FAFC))
-                                                    .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(8.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                AsyncImage(
-                                                    model = resolveImageModel(context, pic.url, preferredName = pic.name),
-                                                    contentDescription = pic.name,
-                                                    contentScale = ContentScale.Fit,
-                                                    modifier = Modifier.fillMaxSize().padding(2.dp)
-                                                )
-                                                IconButton(
-                                                    onClick = { pictures = pictures.filter { it.id != pic.id } },
-                                                    modifier = Modifier
-                                                        .size(20.dp)
-                                                        .align(Alignment.TopEnd)
-                                                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                                ) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(12.dp))
-                                                }
-                                            }
+                                    var editSpecLightboxIndex by remember { mutableIntStateOf(0) }
+                                    var editSpecLightboxOpen by remember { mutableStateOf(false) }
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        itemsIndexed(pictures) { picIdx, pic ->
+                                            PhotoThumbnailItem(
+                                                picture = pic,
+                                                onPhotoClick = {
+                                                    editSpecLightboxIndex = picIdx
+                                                    editSpecLightboxOpen = true
+                                                },
+                                                onRemoveClick = { pictures = pictures.filter { it.id != pic.id } },
+                                                size = 120.dp
+                                            )
                                         }
+                                    }
+                                    if (editSpecLightboxOpen) {
+                                        FullScreenPhotoLightbox(
+                                            images = pictures,
+                                            initialIndex = editSpecLightboxIndex,
+                                            onDismiss = { editSpecLightboxOpen = false }
+                                        )
                                     }
                                 }
                             }
