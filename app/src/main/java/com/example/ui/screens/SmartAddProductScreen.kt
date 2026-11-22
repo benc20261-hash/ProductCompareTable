@@ -53,6 +53,8 @@ import com.example.ui.components.SpecUnitBadge
 import com.example.ui.components.SpecificationsOrderModal
 import com.example.ui.components.TagBrandProductFilter
 import com.example.ui.components.AddSpecModal
+import com.example.ui.components.AppPhotoLibraryDialog
+import com.example.ui.util.UriHelper
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.foundation.lazy.LazyRow
@@ -161,6 +163,19 @@ fun SmartAddProductScreen(
             )
         }
     }
+
+    // Storage / File Picker for inline spec editor (Supports Downloads, BlueStacks Shared Folder, SD Card)
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
+            inlineSpecPictures.add(
+                com.example.model.copyPickedUriToPermanentStorage(context, uri, prefix = "spec_pic")
+            )
+        }
+    }
+
+    var showAppLibraryDialog by remember { mutableStateOf(false) }
 
     // Lightbox state for inline spec pictures
     var specLightboxImages by remember { mutableStateOf<List<PictureItem>?>(null) }
@@ -1883,11 +1898,19 @@ fun SmartAddProductScreen(
                                                 )
                                                 DashedDropzoneBox(
                                                     buttonText = "Choose pictures",
-                                                    helperText = "Tap to select from photo library or drop files here",
+                                                    browseFilesText = "Browse files / storage",
+                                                    helperText = "Select from photo library, downloads, or BlueStacks files",
                                                     onPickClick = {
+                                                        UriHelper.scanCommonStorageFolders(context)
                                                         photoPickerLauncher.launch(
                                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                                         )
+                                                    },
+                                                    onBrowseFilesClick = {
+                                                        filePickerLauncher.launch("image/*")
+                                                    },
+                                                    onAppLibraryClick = {
+                                                        showAppLibraryDialog = true
                                                     },
                                                     testTag = "smart_add_spec_dropzone"
                                                 )
@@ -2248,6 +2271,16 @@ fun SmartAddProductScreen(
             images = images,
             initialIndex = specLightboxIndex,
             onDismiss = { specLightboxImages = null }
+        )
+    }
+
+    if (showAppLibraryDialog) {
+        AppPhotoLibraryDialog(
+            onDismiss = { showAppLibraryDialog = false },
+            onSelectPictures = { pics ->
+                inlineSpecPictures.addAll(pics)
+            },
+            allowMultiple = true
         )
     }
 }

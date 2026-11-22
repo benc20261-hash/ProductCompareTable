@@ -162,4 +162,44 @@ object UriHelper {
             clipboard?.setPrimaryClip(clip)
         } catch (_: Exception) {}
     }
+
+    /**
+     * Scans common external storage folders (Downloads, DCIM, SharedFolder)
+     * so that files dragged into emulators like BlueStacks get indexed by MediaStore.
+     */
+    fun scanCommonStorageFolders(context: Context) {
+        try {
+            val candidatePaths = listOf(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)?.absolutePath,
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES)?.absolutePath,
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DCIM)?.absolutePath,
+                "/sdcard/Download",
+                "/sdcard/Pictures",
+                "/sdcard/DCIM/SharedFolder",
+                "/storage/emulated/0/Download",
+                "/storage/emulated/0/DCIM/SharedFolder",
+                "/storage/emulated/0/Pictures"
+            ).filterNotNull()
+
+            val filesToScan = mutableListOf<String>()
+            candidatePaths.forEach { pathStr ->
+                val dir = java.io.File(pathStr)
+                if (dir.exists() && dir.isDirectory) {
+                    dir.listFiles()?.take(50)?.forEach { f ->
+                        if (f.isFile && f.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "gif")) {
+                            filesToScan.add(f.absolutePath)
+                        }
+                    }
+                }
+            }
+            if (filesToScan.isNotEmpty()) {
+                android.media.MediaScannerConnection.scanFile(
+                    context,
+                    filesToScan.take(100).toTypedArray(),
+                    null,
+                    null
+                )
+            }
+        } catch (_: Exception) {}
+    }
 }

@@ -49,9 +49,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import com.example.model.PictureItem
 import com.example.model.ProductItem
 import com.example.model.ReviewItem
 import com.example.model.resolveImageModel
+import com.example.ui.util.UriHelper
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -89,30 +91,78 @@ fun RichReviewEditor(
 
     val context = LocalContext.current
 
-    // Photo picker launcher
+    fun handlePickedImageUri(uri: Uri) {
+        try {
+            val reviewImagesDir = File(context.filesDir, "review_images")
+            if (!reviewImagesDir.exists()) reviewImagesDir.mkdirs()
+            val filename = "editor_${System.currentTimeMillis()}.jpg"
+            val destFile = File(reviewImagesDir, filename)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                destFile.outputStream().use { out -> input.copyTo(out) }
+            }
+            val picturesDir = File(context.filesDir, "pictures")
+            if (!picturesDir.exists()) picturesDir.mkdirs()
+            try { destFile.copyTo(File(picturesDir, filename), overwrite = true) } catch (_: Exception) {}
+
+            val webUrl = "https://local.review/review_images/$filename"
+            val js = "insertImage('$webUrl');"
+            webViewInstance?.evaluateJavascript(js, null)
+        } catch (_: Exception) {
+            val js = "insertImage('${uri.toString()}');"
+            webViewInstance?.evaluateJavascript(js, null)
+        }
+    }
+
+    // Photo picker launcher (System Photo Picker / Albums)
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
-            try {
-                val reviewImagesDir = File(context.filesDir, "review_images")
-                if (!reviewImagesDir.exists()) reviewImagesDir.mkdirs()
-                val filename = "editor_${System.currentTimeMillis()}.jpg"
-                val destFile = File(reviewImagesDir, filename)
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    destFile.outputStream().use { out -> input.copyTo(out) }
-                }
-                val picturesDir = File(context.filesDir, "pictures")
-                if (!picturesDir.exists()) picturesDir.mkdirs()
-                try { destFile.copyTo(File(picturesDir, filename), overwrite = true) } catch (_: Exception) {}
+            handlePickedImageUri(uri)
+        }
+    }
 
-                val webUrl = "https://local.review/review_images/$filename"
-                val js = "insertImage('$webUrl');"
-                webViewInstance?.evaluateJavascript(js, null)
-            } catch (_: Exception) {
-                val js = "insertImage('${uri.toString()}');"
-                webViewInstance?.evaluateJavascript(js, null)
-            }
+    // File picker launcher (System Document / Storage Picker: Downloads, BlueStacks Mac Shared Folder, SD Card)
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            handlePickedImageUri(uri)
+        }
+    }
+
+    var isPhotoMenuOpen by remember { mutableStateOf(false) }
+    var showAppLibraryDialog by remember { mutableStateOf(false) }
+    var showUrlInsertDialog by remember { mutableStateOf(false) }
+    var urlToInsert by remember { mutableStateOf("") }
+
+    var editorLightboxImages by remember { mutableStateOf<List<PictureItem>?>(null) }
+    var editorLightboxIndex by remember { mutableIntStateOf(0) }
+
+    fun openImageInLightbox(url: String) {
+        val cleanUrlName = url.substringAfterLast("/").substringBefore("?")
+        val decodedCleanName = try { URLDecoder.decode(cleanUrlName, "UTF-8") } catch (_: Exception) { cleanUrlName }
+
+        val allReviewPictures = initialReview?.pictures ?: emptyList()
+        val foundIdx = allReviewPictures.indexOfFirst { pic ->
+            val picFn = File(pic.url.removePrefix("file://")).name
+            pic.url == url || pic.url == decodedCleanName ||
+            picFn.equals(cleanUrlName, ignoreCase = true) ||
+            picFn.equals(decodedCleanName, ignoreCase = true)
+        }
+
+        if (foundIdx != -1) {
+            editorLightboxIndex = foundIdx
+            editorLightboxImages = allReviewPictures
+        } else {
+            editorLightboxIndex = 0
+            editorLightboxImages = listOf(
+                PictureItem(
+                    id = "editor_${System.currentTimeMillis()}",
+                    name = decodedCleanName.ifBlank { "Review Photo" },
+                    url = url
+                )
+            )
         }
     }
 
@@ -414,25 +464,86 @@ fun RichReviewEditor(
                             }
                         }
 
-                        // Insert Photo Button [🖼️ Insert Photo]
-                        OutlinedButton(
-                            onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        // Insert Photo Button with Source Options [🖼️ Insert Photo ▾]
+                        Box {
+                            OutlinedButton(
+                                onClick = { isPhotoMenuOpen = true },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = Color(0xFFEEF2FF),
+                                    contentColor = Color(0xFF4F46E5)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC7D2FE)),
+                                modifier = Modifier.height(30.dp)
+                            ) {
+                                Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Insert Photo", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.width(2.dp))
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(14.dp))
+                            }
+
+                            DropdownMenu(
+                                expanded = isPhotoMenuOpen,
+                                onDismissRequest = { isPhotoMenuOpen = false }
+                            ) {
+                                DropdownMenuItem(
+                                    leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null, tint = Color(0xFF4F46E5), modifier = Modifier.size(18.dp)) },
+                                    text = {
+                                        Column {
+                                            Text("Browse Files & Storage", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Downloads, BlueStacks Mac Shared Folder, SD Card", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    },
+                                    onClick = {
+                                        isPhotoMenuOpen = false
+                                        filePickerLauncher.launch("image/*")
+                                    }
                                 )
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color(0xFFEEF2FF),
-                                contentColor = Color(0xFF4F46E5)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC7D2FE)),
-                            modifier = Modifier.height(30.dp)
-                        ) {
-                            Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Insert Photo", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                DropdownMenuItem(
+                                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFF0F172A), modifier = Modifier.size(18.dp)) },
+                                    text = {
+                                        Column {
+                                            Text("Photo Gallery & Albums", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("System Photo Picker & Albums", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    },
+                                    onClick = {
+                                        isPhotoMenuOpen = false
+                                        UriHelper.scanCommonStorageFolders(context)
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    leadingIcon = { Icon(Icons.Default.Collections, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(18.dp)) },
+                                    text = {
+                                        Column {
+                                            Text("From App Photo Library", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Pick from existing product & review photos", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    },
+                                    onClick = {
+                                        isPhotoMenuOpen = false
+                                        showAppLibraryDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(18.dp)) },
+                                    text = {
+                                        Column {
+                                            Text("Enter Image URL", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            Text("Insert from web link or URL", fontSize = 10.sp, color = Color(0xFF64748B))
+                                        }
+                                    },
+                                    onClick = {
+                                        isPhotoMenuOpen = false
+                                        showUrlInsertDialog = true
+                                    }
+                                )
+                            }
                         }
 
                         // Clear formatting Tx
@@ -857,6 +968,13 @@ fun RichReviewEditor(
                                     fun notifyReady() {
                                         // Ready
                                     }
+
+                                    @JavascriptInterface
+                                    fun onImageClick(url: String) {
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            openImageInLightbox(url)
+                                        }
+                                    }
                                 }, "AndroidBridge")
 
                                 loadDataWithBaseURL("https://local.review/", editorHtml, "text/html", "UTF-8", null)
@@ -878,6 +996,67 @@ fun RichReviewEditor(
                 }
             }
         }
+    }
+
+    if (showAppLibraryDialog) {
+        AppPhotoLibraryDialog(
+            onDismiss = { showAppLibraryDialog = false },
+            onSelectPictures = { pictures ->
+                pictures.forEach { pic ->
+                    val webUrl = "https://local.review/review_images/${pic.name}"
+                    val js = "insertImage('$webUrl');"
+                    webViewInstance?.evaluateJavascript(js, null)
+                }
+            },
+            allowMultiple = true
+        )
+    }
+
+    if (showUrlInsertDialog) {
+        AlertDialog(
+            onDismissRequest = { showUrlInsertDialog = false },
+            title = { Text("Insert Image via URL", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter image web link (http://, https://, or file://):", fontSize = 12.sp, color = Color(0xFF64748B))
+                    OutlinedTextField(
+                        value = urlToInsert,
+                        onValueChange = { urlToInsert = it },
+                        placeholder = { Text("https://example.com/photo.jpg") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (urlToInsert.isNotBlank()) {
+                            val js = "insertImage('${urlToInsert.trim()}');"
+                            webViewInstance?.evaluateJavascript(js, null)
+                            urlToInsert = ""
+                            showUrlInsertDialog = false
+                        }
+                    },
+                    enabled = urlToInsert.isNotBlank()
+                ) {
+                    Text("Insert")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showUrlInsertDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    editorLightboxImages?.let { images ->
+        FullScreenPhotoLightbox(
+            images = images,
+            initialIndex = editorLightboxIndex,
+            onDismiss = { editorLightboxImages = null }
+        )
     }
 }
 
@@ -926,7 +1105,6 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
             * { box-sizing: border-box; }
             html, body {
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-              zoom: ${initialZoom}%;
               margin: 0;
               padding: 0;
               color: #1e293b;
@@ -937,6 +1115,7 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
               overflow-x: hidden;
             }
             .editor-page-container {
+              zoom: ${initialZoom}%;
               padding: 12px 14px 48px 14px;
               max-width: 720px;
               margin: 0 auto;
@@ -980,7 +1159,6 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
             }
             img {
               max-width: 100%;
-              max-height: 480px;
               object-fit: contain;
               height: auto;
               border-radius: 10px;
@@ -988,12 +1166,47 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
               margin: 10px auto;
               display: block;
               box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+              cursor: pointer;
+              transition: outline 0.15s ease, box-shadow 0.15s ease;
+            }
+            img.selected-image {
+              outline: 3px solid #4f46e5 !important;
+              outline-offset: 4px !important;
+              box-shadow: 0 4px 16px rgba(79, 70, 229, 0.35) !important;
+            }
+            figure.review-figure {
+              margin: 14px auto;
+              text-align: center;
+              max-width: 100%;
+            }
+            figure.review-figure img {
+              margin: 0 auto;
+            }
+            figcaption.review-caption {
+              font-size: 12px;
+              color: #64748b;
+              margin-top: 6px;
+              font-style: italic;
+              text-align: center;
             }
           </style>
         </head>
         <body>
           <div class="editor-page-container">
             <div id="editor" contenteditable="true">$initialContent</div>
+          </div>
+          <div id="image-action-bar" style="display: none; position: fixed; z-index: 99999; background: #0f172a; color: white; border-radius: 12px; padding: 6px 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; gap: 6px; align-items: center; user-select: none;">
+            <button type="button" onclick="viewSelectedImageFull()" title="View full screen (Double-click image also works)" style="background: #4f46e5; color: white; border: none; border-radius: 6px; padding: 5px 9px; font-weight: bold; cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;">
+              <span>🔍 Full View</span>
+            </button>
+            <span style="color: #475569; font-size: 12px;">|</span>
+            <button type="button" onclick="resizeSelectedImage(-15)" title="Smaller" style="background: #334155; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">➖</button>
+            <button type="button" onclick="setImageSize('30%')" title="Small (30%)" style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; cursor: pointer; font-size: 11px; font-weight: 600;">30%</button>
+            <button type="button" onclick="setImageSize('60%')" title="Medium (60%)" style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; cursor: pointer; font-size: 11px; font-weight: 600;">60%</button>
+            <button type="button" onclick="setImageSize('100%')" title="Full width (100%)" style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 6px; padding: 3px 6px; cursor: pointer; font-size: 11px; font-weight: 600;">100%</button>
+            <button type="button" onclick="resizeSelectedImage(15)" title="Bigger" style="background: #334155; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">➕</button>
+            <span style="color: #475569; font-size: 12px;">|</span>
+            <button type="button" onclick="deleteSelectedImage()" title="Delete Image" style="background: #dc2626; color: white; border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 11px;">🗑️</button>
           </div>
           <script>
             function setEditorZoom(zoomPct) {
@@ -1003,7 +1216,12 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
                 style.id = 'dynamic-editor-zoom-style';
                 document.head.appendChild(style);
               }
-              style.textContent = 'html, body, #editor { zoom: ' + zoomPct + '% !important; }';
+              style.textContent = '.editor-page-container { zoom: ' + zoomPct + '% !important; }';
+              if (document.body) { document.body.style.zoom = '100%'; }
+              if (document.documentElement) { document.documentElement.style.zoom = '100%'; }
+              if (currentSelectedImg) {
+                setTimeout(function() { positionActionBar(currentSelectedImg); }, 60);
+              }
             }
             function execCommand(cmd, val) {
               document.execCommand(cmd, false, val || null);
@@ -1013,6 +1231,7 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
             }
             function insertImage(url) {
               document.execCommand('insertImage', false, url);
+              setTimeout(setupImageListeners, 150);
             }
             function insertTable(rows, cols) {
               var html = '<table><tbody>';
@@ -1083,6 +1302,208 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
               var el = document.getElementById('editor');
               return el ? el.innerHTML : '';
             }
+
+            function getZoomFactor() {
+              var z = 1;
+              try {
+                var bz = window.getComputedStyle(document.body).zoom;
+                if (bz && !isNaN(parseFloat(bz))) z = parseFloat(bz);
+                else {
+                  var hz = window.getComputedStyle(document.documentElement).zoom;
+                  if (hz && !isNaN(parseFloat(hz))) z = parseFloat(hz);
+                }
+              } catch(e) {}
+              return z > 0 ? z : 1;
+            }
+
+            var currentSelectedImg = null;
+            var lastClickPos = null;
+
+            function setupImageListeners() {
+              var images = document.querySelectorAll('#editor img');
+              images.forEach(function(img) {
+                if (img.dataset.hasImgListener) return;
+                img.dataset.hasImgListener = 'true';
+
+                img.addEventListener('pointerdown', function(e) {
+                  lastClickPos = { clientX: e.clientX, clientY: e.clientY };
+                });
+
+                // Single click: select image and show floating resize/view action bar
+                img.addEventListener('click', function(e) {
+                  e.stopPropagation();
+                  lastClickPos = { clientX: e.clientX, clientY: e.clientY };
+                  selectImage(img, e);
+                });
+
+                // Double click: view full image directly
+                img.addEventListener('dblclick', function(e) {
+                  e.stopPropagation();
+                  if (window.AndroidBridge && window.AndroidBridge.onImageClick) {
+                    window.AndroidBridge.onImageClick(img.src);
+                  }
+                });
+              });
+            }
+
+            function selectImage(img, clickEvent) {
+              if (currentSelectedImg && currentSelectedImg !== img) {
+                currentSelectedImg.classList.remove('selected-image');
+              }
+              currentSelectedImg = img;
+              img.classList.add('selected-image');
+              positionActionBar(img, clickEvent);
+            }
+
+            function positionActionBar(img, clickEvent) {
+              var bar = document.getElementById('image-action-bar');
+              if (!bar || !img) return;
+
+              if (clickEvent && clickEvent.clientX !== undefined) {
+                lastClickPos = { clientX: clickEvent.clientX, clientY: clickEvent.clientY };
+              }
+
+              var rect = img.getBoundingClientRect();
+              var winH = window.innerHeight || document.documentElement.clientHeight || 600;
+              var winW = window.innerWidth || document.documentElement.clientWidth || 800;
+
+              // Hide if image is scrolled completely out of view
+              if (rect.bottom < 10 || rect.top > winH - 10 || rect.width === 0 || rect.height === 0) {
+                bar.style.display = 'none';
+                return;
+              }
+
+              bar.style.display = 'flex';
+              bar.style.position = 'fixed';
+
+              var z = getZoomFactor();
+              var barW = bar.offsetWidth || 320;
+              var barH = bar.offsetHeight || 38;
+
+              // Determine target Y in viewport coordinates:
+              var targetY;
+              if (rect.top >= barH + 8) {
+                // Top of image is visible and has room above it
+                targetY = rect.top - barH - 6;
+              } else if (rect.top >= 6) {
+                // Top of image is near top of viewport, place just inside top of image
+                targetY = rect.top + 6;
+              } else {
+                // Top of image is scrolled off the top of screen.
+                // If user just clicked at a visible point inside the image:
+                if (lastClickPos && lastClickPos.clientY >= barH + 10 && lastClickPos.clientY <= rect.bottom) {
+                  targetY = lastClickPos.clientY - barH - 8;
+                } else {
+                  // Fallback: stay visible near top of viewport
+                  targetY = 10;
+                }
+              }
+
+              // Keep targetY clamped within visible viewport
+              if (targetY < 8) targetY = 8;
+              if (targetY + barH > winH - 8) targetY = winH - barH - 8;
+
+              // Determine target X (centered on image)
+              var imgCenter = rect.left + (rect.width / 2);
+              var targetX = imgCenter - (barW / 2);
+
+              // Clamp X within viewport
+              if (targetX < 8) targetX = 8;
+              if (targetX + barW > winW - 8) targetX = winW - barW - 8;
+
+              // Apply position with zoom compensation
+              bar.style.top = (targetY / z) + 'px';
+              bar.style.left = (targetX / z) + 'px';
+            }
+
+            function deselectImage() {
+              if (currentSelectedImg) {
+                currentSelectedImg.classList.remove('selected-image');
+                currentSelectedImg = null;
+              }
+              var bar = document.getElementById('image-action-bar');
+              if (bar) bar.style.display = 'none';
+            }
+
+            document.addEventListener('click', function(e) {
+              var bar = document.getElementById('image-action-bar');
+              if (bar && bar.contains(e.target)) return;
+              if (e.target && e.target.tagName !== 'IMG') {
+                deselectImage();
+              }
+            });
+
+            window.addEventListener('scroll', function() {
+              if (currentSelectedImg) positionActionBar(currentSelectedImg);
+            }, true);
+
+            window.addEventListener('resize', function() {
+              if (currentSelectedImg) positionActionBar(currentSelectedImg);
+            });
+
+            function viewSelectedImageFull() {
+              if (currentSelectedImg && window.AndroidBridge && window.AndroidBridge.onImageClick) {
+                window.AndroidBridge.onImageClick(currentSelectedImg.src);
+              }
+            }
+
+            function resizeSelectedImage(deltaPercent) {
+              if (!currentSelectedImg) return;
+              var currentWidth = 100;
+              var styleWidth = currentSelectedImg.style.width;
+              if (styleWidth && styleWidth.indexOf('%') !== -1) {
+                currentWidth = parseInt(styleWidth, 10);
+              } else if (currentSelectedImg.parentElement && currentSelectedImg.parentElement.tagName === 'FIGURE') {
+                var figW = currentSelectedImg.parentElement.style.width;
+                if (figW && figW.indexOf('%') !== -1) {
+                  currentWidth = parseInt(figW, 10);
+                }
+              }
+
+              var newWidth = Math.max(20, Math.min(100, currentWidth + deltaPercent));
+              setImageSize(newWidth + '%');
+            }
+
+            function setImageSize(widthStr) {
+              if (!currentSelectedImg) return;
+              currentSelectedImg.style.width = widthStr;
+              currentSelectedImg.style.maxWidth = '100%';
+              currentSelectedImg.style.height = 'auto';
+
+              var fig = currentSelectedImg.closest('figure');
+              if (fig) {
+                fig.style.width = widthStr;
+                fig.style.margin = '14px auto';
+                fig.style.maxWidth = '100%';
+                fig.style.textAlign = 'center';
+              }
+
+              setTimeout(function() {
+                if (currentSelectedImg) positionActionBar(currentSelectedImg);
+              }, 40);
+            }
+
+            function deleteSelectedImage() {
+              if (!currentSelectedImg) return;
+              var fig = currentSelectedImg.closest('figure');
+              if (fig && fig.parentNode) {
+                fig.parentNode.removeChild(fig);
+              } else if (currentSelectedImg.parentNode) {
+                currentSelectedImg.parentNode.removeChild(currentSelectedImg);
+              }
+              deselectImage();
+            }
+
+            var observer = new MutationObserver(function() {
+              setupImageListeners();
+            });
+            var editorEl = document.getElementById('editor');
+            if (editorEl) {
+              observer.observe(editorEl, { childList: true, subtree: true });
+            }
+            setupImageListeners();
+            document.addEventListener('DOMContentLoaded', setupImageListeners);
+            window.addEventListener('load', setupImageListeners);
           </script>
         </body>
         </html>

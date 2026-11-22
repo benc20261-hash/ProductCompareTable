@@ -1805,6 +1805,19 @@ fun EditSpecModal(
         }
     }
 
+    val specFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val newPics = uris.map { uri ->
+                copyPickedUriToPermanentStorage(context, uri, prefix = "spec_pic")
+            }
+            pictures = pictures + newPics
+        }
+    }
+
+    var showAppLibraryDialog by remember { mutableStateOf(false) }
+
     BackHandler { onDismiss() }
 
     Dialog(
@@ -2194,11 +2207,19 @@ fun EditSpecModal(
 
                                 DashedDropzoneBox(
                                     buttonText = "Choose pictures",
-                                    helperText = "Tap to select from photo library or drop files here",
+                                    browseFilesText = "Browse files / storage",
+                                    helperText = "Select from photo library, downloads, or BlueStacks files",
                                     onPickClick = {
+                                        com.example.ui.util.UriHelper.scanCommonStorageFolders(context)
                                         specPhotoPicker.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                         )
+                                    },
+                                    onBrowseFilesClick = {
+                                        specFilePicker.launch("image/*")
+                                    },
+                                    onAppLibraryClick = {
+                                        showAppLibraryDialog = true
                                     },
                                     testTag = "edit_spec_dropzone"
                                 )
@@ -2247,6 +2268,16 @@ fun EditSpecModal(
                 onDismiss()
             },
             onDismiss = { showDeleteConfirm = false }
+        )
+    }
+
+    if (showAppLibraryDialog) {
+        AppPhotoLibraryDialog(
+            onDismiss = { showAppLibraryDialog = false },
+            onSelectPictures = { newPics ->
+                pictures = pictures + newPics
+            },
+            allowMultiple = true
         )
     }
 }

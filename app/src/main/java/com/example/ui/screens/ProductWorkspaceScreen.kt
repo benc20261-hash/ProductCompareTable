@@ -46,6 +46,7 @@ import com.example.model.ProductItem
 import com.example.model.SpecificationItem
 import com.example.model.copyPickedUriToPermanentStorage
 import com.example.model.resolveImageModel
+import com.example.ui.components.AppPhotoLibraryDialog
 import com.example.ui.components.DashedDropzoneBox
 import com.example.ui.components.DeleteConfirmDialog
 import com.example.ui.components.FormattedSpecHtml
@@ -55,6 +56,7 @@ import com.example.ui.components.PhotoThumbnailItem
 import com.example.ui.components.SpecificationFormContent
 import com.example.ui.components.SpecUnitBadge
 import com.example.ui.components.htmlToPlainText
+import com.example.ui.util.UriHelper
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -168,6 +170,16 @@ fun ProductWorkspaceScreen(
         }
     }
 
+    // Storage / File Picker for Product Pictures (Supports Downloads, BlueStacks Shared Folder, SD Card)
+    val productFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri ->
+            val permanentPic = copyPickedUriToPermanentStorage(context, uri, prefix = "prod_pic")
+            productPictures.add(permanentPic)
+        }
+    }
+
     // Android Photo Picker for Spec Pictures (Copies permanently to disk)
     val specPhotoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -182,6 +194,24 @@ fun ProductWorkspaceScreen(
             specsList[selectedSpecIndex] = currentSpec.copy(pictures = updatedPics)
         }
     }
+
+    // Storage / File Picker for Spec Pictures (Supports Downloads, BlueStacks Shared Folder, SD Card)
+    val specFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (selectedSpecIndex in specsList.indices) {
+            val currentSpec = specsList[selectedSpecIndex]
+            val updatedPics = currentSpec.pictures.toMutableList()
+            uris.forEach { uri ->
+                val permanentPic = copyPickedUriToPermanentStorage(context, uri, prefix = "spec_pic")
+                updatedPics.add(permanentPic)
+            }
+            specsList[selectedSpecIndex] = currentSpec.copy(pictures = updatedPics)
+        }
+    }
+
+    var showAppLibraryForProduct by remember { mutableStateOf(false) }
+    var showAppLibraryForSpecIndex by remember { mutableStateOf<Int?>(null) }
 
     // Save action helper
     fun doSave() {
@@ -1144,14 +1174,22 @@ fun ProductWorkspaceScreen(
                             color = Color(0xFF0F172A)
                         )
 
-                        // Dashed dropzone card
+                        // Dashed dropzone card with gallery, file browsing, and app library
                         DashedDropzoneBox(
                             buttonText = "Choose pictures",
-                            helperText = "Tap to select from photo library or drop files here",
+                            browseFilesText = "Browse files / storage",
+                            helperText = "Select from photo library, downloads, or BlueStacks files",
                             onPickClick = {
+                                UriHelper.scanCommonStorageFolders(context)
                                 productPhotoPicker.launch(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
+                            },
+                            onBrowseFilesClick = {
+                                productFilePicker.launch("image/*")
+                            },
+                            onAppLibraryClick = {
+                                showAppLibraryForProduct = true
                             },
                             testTag = "workspace_choose_product_pics_btn"
                         )
@@ -1405,9 +1443,17 @@ fun ProductWorkspaceScreen(
                                     pictures = spec.pictures,
                                     onPickPicturesClick = {
                                         selectedSpecIndex = index
+                                        UriHelper.scanCommonStorageFolders(context)
                                         specPhotoPicker.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                         )
+                                    },
+                                    onBrowseFilesClick = {
+                                        selectedSpecIndex = index
+                                        specFilePicker.launch("image/*")
+                                    },
+                                    onAppLibraryClick = {
+                                        showAppLibraryForSpecIndex = index
                                     },
                                     onRemovePictureClick = { spPic ->
                                         val updated = spec.pictures.filter { it.id != spPic.id }
@@ -1520,6 +1566,30 @@ fun ProductWorkspaceScreen(
             initialIndex = activeLightboxIndex,
             onDismiss = { activeLightboxImages = null }
         )
+    }
+
+    if (showAppLibraryForProduct) {
+        AppPhotoLibraryDialog(
+            onDismiss = { showAppLibraryForProduct = false },
+            onSelectPictures = { pics ->
+                productPictures.addAll(pics)
+            },
+            allowMultiple = true
+        )
+    }
+
+    showAppLibraryForSpecIndex?.let { specIdx ->
+        if (specIdx in specsList.indices) {
+            AppPhotoLibraryDialog(
+                onDismiss = { showAppLibraryForSpecIndex = null },
+                onSelectPictures = { pics ->
+                    val cur = specsList[specIdx]
+                    val updatedPics = cur.pictures + pics
+                    specsList[specIdx] = cur.copy(pictures = updatedPics)
+                },
+                allowMultiple = true
+            )
+        }
     }
 }
 

@@ -227,44 +227,30 @@ object BackupArchiveManager {
             file.writeText(mdContent)
         }
 
-        // 3. Collect and package unique pictures (both remote URLs and local files)
+        // 3. Collect and package unique pictures without duplication
         onProgress("Packaging pictures", 3, 4)
-        val allPictures = mutableMapOf<String, PictureItem>()
-        products.forEach { p -> p.pictures.forEach { allPictures[it.id] = it } }
-        specifications.forEach { s -> s.pictures.forEach { allPictures[it.id] = it } }
-        reviews.forEach { r -> r.pictures.forEach { allPictures[it.id] = it } }
-
+        val packagedFilenames = mutableSetOf<String>()
         var packagedPicturesCount = 0
 
-        // Bundle ALL existing local review images in context.filesDir/review_images
-        val localReviewImagesFolder = File(context.filesDir, "review_images")
-        if (localReviewImagesFolder.exists() && localReviewImagesFolder.isDirectory) {
-            localReviewImagesFolder.listFiles()?.forEach { f ->
-                if (f.isFile) {
-                    try {
-                        val dest = File(reviewImagesDir, f.name)
-                        f.copyTo(dest, overwrite = true)
-                        packagedPicturesCount++
-                    } catch (_: Exception) {}
-                }
+        // Helper to copy a file into a specific backup folder if not already packaged
+        fun packageFile(sourceFile: File, destDir: File, preferredName: String? = null): Boolean {
+            if (!sourceFile.exists() || !sourceFile.isFile || sourceFile.length() == 0L) return false
+            val targetName = preferredName?.ifBlank { null } ?: sourceFile.name
+            val nameKey = targetName.lowercase()
+            if (packagedFilenames.contains(nameKey)) return false
+
+            try {
+                val dest = File(destDir, targetName)
+                sourceFile.copyTo(dest, overwrite = true)
+                packagedFilenames.add(nameKey)
+                packagedPicturesCount++
+                return true
+            } catch (_: Exception) {
+                return false
             }
         }
 
-        // Bundle ALL existing local pictures in context.filesDir/pictures
-        val localPicturesFolder = File(context.filesDir, "pictures")
-        if (localPicturesFolder.exists() && localPicturesFolder.isDirectory) {
-            localPicturesFolder.listFiles()?.forEach { f ->
-                if (f.isFile) {
-                    try {
-                        val dest = File(picturesDir, f.name)
-                        f.copyTo(dest, overwrite = true)
-                        packagedPicturesCount++
-                    } catch (_: Exception) {}
-                }
-            }
-        }
-
-        // Bundle all images embedded in review HTML bodies
+        // A. Review inline images and attached pictures -> package to review_images/
         reviews.forEach { rev ->
             val srcRegex = Regex("""src=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
             srcRegex.findAll(rev.body).forEach { m ->
@@ -276,36 +262,65 @@ object BackupArchiveManager {
                     val c2 = File(File(context.filesDir, "review_images"), rawFilename)
                     val c3 = File(File(context.filesDir, "pictures"), decoded)
                     val c4 = File(File(context.filesDir, "pictures"), rawFilename)
-                    val found = listOf(c1, c2, c3, c4).firstOrNull { it.exists() && it.isFile }
+                    val found = listOf(c1, c2, c3, c4).firstOrNull { it.exists() && it.isFile && it.length() > 0L }
                     if (found != null) {
-                        try {
-                            found.copyTo(File(reviewImagesDir, found.name), overwrite = true)
-                            packagedPicturesCount++
-                        } catch (_: Exception) {}
+                        packageFile(found, reviewImagesDir, found.name)
+                    }
+                }
+            }
+            rev.pictures.forEach { pic ->
+                if (pic.url.isNotBlank()) {
+                    val rawFilename = pic.url.substringAfterLast("/").substringBefore("?")
+                    val decoded = try { URLDecoder.decode(rawFilename, "UTF-8") } catch (_: Exception) { rawFilename }
+                    val c1 = File(File(context.filesDir, "review_images"), decoded)
+                    val c2 = File(File(context.filesDir, "review_images"), rawFilename)
+                    val c3 = File(File(context.filesDir, "pictures"), decoded)
+                    val c4 = File(File(context.filesDir, "pictures"), rawFilename)
+                    val found = listOf(c1, c2, c3, c4).firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+                    if (found != null) {
+                        packageFile(found, reviewImagesDir, found.name)
                     }
                 }
             }
         }
 
-        allPictures.values.forEachIndexed { _, pic ->
+        // B. Any remaining local review images in context.filesDir/review_images -> package to review_images/
+        val localReviewImagesFolder = File(context.filesDir, "review_images")
+        if (localReviewImagesFolder.exists() && localReviewImagesFolder.isDirectory) {
+            localReviewImagesFolder.listFiles()?.forEach { f ->
+                if (f.isFile && !f.name.startsWith(".")) {
+                    packageFile(f, reviewImagesDir, f.name)
+                }
+            }
+        }
+
+        // C. Product and specification pictures -> package to pictures/
+        val productAndSpecPictures = mutableMapOf<String, PictureItem>()
+        products.forEach { p -> p.pictures.forEach { productAndSpecPictures[it.id] = it } }
+        specifications.forEach { s -> s.pictures.forEach { productAndSpecPictures[it.id] = it } }
+
+        productAndSpecPictures.values.forEach { pic ->
             if (pic.url.isNotBlank()) {
+                val rawFn = pic.url.substringAfterLast("/").substringBefore("?")
+                val decoded = try { URLDecoder.decode(rawFn, "UTF-8") } catch (_: Exception) { rawFn }
+                val key = if (decoded.isNotBlank()) decoded.lowercase() else ""
+                if (key.isNotBlank() && packagedFilenames.contains(key)) {
+                    // Already packaged in review_images/, do not duplicate into pictures/
+                    return@forEach
+                }
+
                 if (pic.url.startsWith("http://") || pic.url.startsWith("https://")) {
                     if (pic.url.contains("local.review")) {
-                        // Virtual URL: extract local file
-                        val filename = pic.url.substringAfterLast("/")
-                        val localF1 = File(context.filesDir, "review_images/$filename")
-                        val localF2 = File(context.filesDir, "pictures/$filename")
-                        val foundF = if (localF1.exists() && localF1.isFile) localF1 else if (localF2.exists() && localF2.isFile) localF2 else null
+                        val localF1 = File(context.filesDir, "pictures/$decoded")
+                        val localF2 = File(context.filesDir, "review_images/$decoded")
+                        val localF3 = File(context.filesDir, "pictures/$rawFn")
+                        val localF4 = File(context.filesDir, "review_images/$rawFn")
+                        val foundF = listOf(localF1, localF2, localF3, localF4).firstOrNull { it.exists() && it.isFile }
                         if (foundF != null) {
-                            try {
-                                val dest = File(reviewImagesDir, filename)
-                                foundF.copyTo(dest, overwrite = true)
-                                foundF.copyTo(File(picturesDir, filename), overwrite = true)
-                                packagedPicturesCount++
-                            } catch (_: Exception) {}
+                            packageFile(foundF, picturesDir, foundF.name)
                         }
                     } else {
-                        // Remote web image: download
+                        // Remote web image: download into pictures/
                         try {
                             val request = Request.Builder().url(pic.url).build()
                             val response = httpClient.newCall(request).execute()
@@ -313,58 +328,56 @@ object BackupArchiveManager {
                                 val body = response.body
                                 if (body != null) {
                                     val cleanName = pic.name.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-                                    val picFile = File(picturesDir, "${pic.id}_$cleanName")
-                                    picFile.outputStream().use { out ->
-                                        body.byteStream().copyTo(out)
+                                    val destName = "${pic.id}_$cleanName"
+                                    if (!packagedFilenames.contains(destName.lowercase())) {
+                                        val picFile = File(picturesDir, destName)
+                                        picFile.outputStream().use { out -> body.byteStream().copyTo(out) }
+                                        packagedFilenames.add(destName.lowercase())
+                                        packagedPicturesCount++
                                     }
-                                    try {
-                                        picFile.copyTo(File(reviewImagesDir, "${pic.id}_$cleanName"), overwrite = true)
-                                    } catch (_: Exception) {}
-                                    packagedPicturesCount++
                                 }
                             }
-                        } catch (_: Exception) {
-                            // Continue gracefully
-                        }
+                        } catch (_: Exception) {}
                     }
                 } else if (pic.url.startsWith("content://")) {
                     try {
                         val cleanName = pic.name.replace(Regex("[^a-zA-Z0-9._-]"), "_")
                         val destName = if (cleanName.contains(".")) "${pic.id}_$cleanName" else "${pic.id}_$cleanName.jpg"
-                        val destFile = File(picturesDir, destName)
-                        context.contentResolver.openInputStream(Uri.parse(pic.url))?.use { input ->
-                            destFile.outputStream().use { out -> input.copyTo(out) }
-                        }
-                        if (destFile.exists() && destFile.length() > 0) {
-                            try {
-                                destFile.copyTo(File(reviewImagesDir, destName), overwrite = true)
-                            } catch (_: Exception) {}
-                            packagedPicturesCount++
+                        if (!packagedFilenames.contains(destName.lowercase())) {
+                            val destFile = File(picturesDir, destName)
+                            context.contentResolver.openInputStream(Uri.parse(pic.url))?.use { input ->
+                                destFile.outputStream().use { out -> input.copyTo(out) }
+                            }
+                            if (destFile.exists() && destFile.length() > 0) {
+                                packagedFilenames.add(destName.lowercase())
+                                packagedPicturesCount++
+                            }
                         }
                     } catch (_: Exception) {}
                 } else if (pic.url.startsWith("file://") || pic.url.startsWith("/")) {
                     val localPath = pic.url.removePrefix("file://")
                     val localF = File(localPath)
                     if (localF.exists() && localF.isFile) {
-                        try {
-                            val dest = File(reviewImagesDir, localF.name)
-                            localF.copyTo(dest, overwrite = true)
-                            localF.copyTo(File(picturesDir, localF.name), overwrite = true)
-                            packagedPicturesCount++
-                        } catch (_: Exception) {}
+                        packageFile(localF, picturesDir, localF.name)
                     } else {
                         val fname = localPath.substringAfterLast("/")
                         val c1 = File(File(context.filesDir, "pictures"), fname)
                         val c2 = File(File(context.filesDir, "review_images"), fname)
                         val found = if (c1.exists()) c1 else if (c2.exists()) c2 else null
                         if (found != null && found.isFile) {
-                            try {
-                                found.copyTo(File(picturesDir, found.name), overwrite = true)
-                                found.copyTo(File(reviewImagesDir, found.name), overwrite = true)
-                                packagedPicturesCount++
-                            } catch (_: Exception) {}
+                            packageFile(found, picturesDir, found.name)
                         }
                     }
+                }
+            }
+        }
+
+        // D. Any remaining unique local pictures in context.filesDir/pictures -> package to pictures/
+        val localPicturesFolder = File(context.filesDir, "pictures")
+        if (localPicturesFolder.exists() && localPicturesFolder.isDirectory) {
+            localPicturesFolder.listFiles()?.forEach { f ->
+                if (f.isFile && !f.name.startsWith(".")) {
+                    packageFile(f, picturesDir, f.name)
                 }
             }
         }
@@ -573,9 +586,10 @@ object BackupArchiveManager {
                         } catch (_: Exception) {}
                     } else {
                         val ext = filename.substringAfterLast(".", "").lowercase()
+                        val isPicturesFolder = nameLower.startsWith("pictures/") || nameLower.contains("/pictures/")
                         val isMediaFolder = nameLower.startsWith("images/") || nameLower.contains("/images/") ||
                                             nameLower.startsWith("review_images/") || nameLower.contains("/review_images/") ||
-                                            nameLower.startsWith("pictures/") || nameLower.contains("/pictures/") ||
+                                            isPicturesFolder ||
                                             nameLower.startsWith("files/") || nameLower.contains("/files/") ||
                                             nameLower.startsWith("attachments/") || nameLower.contains("/attachments/") ||
                                             nameLower.startsWith("media/") || nameLower.contains("/media/")
@@ -583,19 +597,17 @@ object BackupArchiveManager {
 
                         if (isMediaFolder || isImageExt) {
                             try {
-                                val targetInReview = File(destReviewImagesDir, filename)
-                                val targetInPictures = File(destPicturesDir, filename)
+                                val targetDir = if (isPicturesFolder) destPicturesDir else destReviewImagesDir
+                                val targetFile = File(targetDir, filename)
                                 zip.getInputStream(entry).use { inStream ->
-                                    targetInReview.outputStream().use { outStream ->
+                                    targetFile.outputStream().use { outStream ->
                                         inStream.copyTo(outStream)
                                     }
                                 }
-                                if (targetInReview.exists() && targetInReview.length() > 0L) {
-                                    try { targetInReview.copyTo(targetInPictures, overwrite = true) } catch (_: Exception) {}
+                                if (targetFile.exists() && targetFile.length() > 0L) {
                                     val decodedFilename = try { URLDecoder.decode(filename, "UTF-8") } catch (_: Exception) { filename }
                                     if (decodedFilename != filename && decodedFilename.isNotBlank() && !decodedFilename.startsWith(".")) {
-                                        try { targetInReview.copyTo(File(destReviewImagesDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
-                                        try { targetInReview.copyTo(File(destPicturesDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
+                                        try { targetFile.copyTo(File(targetDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
                                     }
                                     extractedCount++
                                 }
@@ -635,23 +647,23 @@ object BackupArchiveManager {
                                 fallbackJsonString = buffer.toString("UTF-8")
                             } else {
                                 val ext = filename.substringAfterLast(".", "").lowercase()
+                                val isPicturesFolder = nameLower.startsWith("pictures/") || nameLower.contains("/pictures/")
                                 val isMediaFolder = nameLower.startsWith("images/") || nameLower.contains("/images/") ||
                                                     nameLower.startsWith("review_images/") || nameLower.contains("/review_images/") ||
-                                                    nameLower.startsWith("pictures/") || nameLower.contains("/pictures/") ||
+                                                    isPicturesFolder ||
                                                     nameLower.startsWith("files/") || nameLower.contains("/files/") ||
                                                     nameLower.startsWith("attachments/") || nameLower.contains("/attachments/") ||
                                                     nameLower.startsWith("media/") || nameLower.contains("/media/")
                                 val isImageExt = ext in listOf("jpg", "jpeg", "png", "webp", "gif", "svg", "bmp", "jfif", "avif", "ico")
                                 if (isMediaFolder || isImageExt) {
                                     try {
-                                        val targetFile = File(destReviewImagesDir, filename)
+                                        val targetDir = if (isPicturesFolder) destPicturesDir else destReviewImagesDir
+                                        val targetFile = File(targetDir, filename)
                                         targetFile.outputStream().use { out -> zis.copyTo(out) }
                                         if (targetFile.exists() && targetFile.length() > 0L) {
-                                            try { targetFile.copyTo(File(destPicturesDir, filename), overwrite = true) } catch (_: Exception) {}
                                             val decodedFilename = try { URLDecoder.decode(filename, "UTF-8") } catch (_: Exception) { filename }
                                             if (decodedFilename != filename && decodedFilename.isNotBlank() && !decodedFilename.startsWith(".")) {
-                                                try { targetFile.copyTo(File(destReviewImagesDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
-                                                try { targetFile.copyTo(File(destPicturesDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
+                                                try { targetFile.copyTo(File(targetDir, decodedFilename), overwrite = true) } catch (_: Exception) {}
                                             }
                                             extractedCount++
                                         }

@@ -12,21 +12,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,8 +30,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.example.model.PictureItem
+import java.io.File
 import com.example.model.resolveImageModel
 import com.example.ui.theme.AppColors
 import com.example.ui.theme.AppSpacing
@@ -267,12 +259,17 @@ val PRESET_QUICK_UNITS = listOf(
 
 /**
  * DashedDropzoneBox: Standard upload dropzone container with upload icon and file picker button.
+ * Supports choosing from photo gallery, browsing storage/downloads (critical for BlueStacks and emulators),
+ * and picking from existing app photo library.
  */
 @Composable
 fun DashedDropzoneBox(
     buttonText: String = "Choose pictures",
-    helperText: String = "Tap to select from photo library or drop files here",
+    browseFilesText: String = "Browse files / storage",
+    helperText: String = "Select from photo library, downloads, or BlueStacks files",
     onPickClick: () -> Unit,
+    onBrowseFilesClick: (() -> Unit)? = null,
+    onAppLibraryClick: (() -> Unit)? = null,
     testTag: String = "dashed_dropzone_box"
 ) {
     Box(
@@ -285,7 +282,7 @@ fun DashedDropzoneBox(
                 color = Color(0xFFCBD5E1),
                 shape = RoundedCornerShape(14.dp)
             )
-            .padding(vertical = 20.dp, horizontal = 16.dp),
+            .padding(vertical = 16.dp, horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -299,22 +296,75 @@ fun DashedDropzoneBox(
                 modifier = Modifier.size(32.dp)
             )
 
-            Button(
-                onClick = onPickClick,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0F172A)),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                modifier = Modifier.testTag(testTag)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = null,
-                    tint = Color(0xFF475569),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(buttonText, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF0F172A))
+                Button(
+                    onClick = onPickClick,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0F172A)),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    modifier = Modifier.testTag(testTag)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = null,
+                        tint = Color(0xFF475569),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(buttonText, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF0F172A))
+                }
+
+                if (onBrowseFilesClick != null) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = onBrowseFilesClick,
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFF1F5F9)),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.testTag("${testTag}_browse_files")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = Color(0xFF475569),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(browseFilesText, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF0F172A))
+                    }
+                }
+            }
+
+            if (onAppLibraryClick != null) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFEEF2FF),
+                    border = BorderStroke(1.dp, Color(0xFFC7D2FE)),
+                    modifier = Modifier.clickable { onAppLibraryClick() }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Collections,
+                            contentDescription = null,
+                            tint = Color(0xFF4F46E5),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            "Or pick from App Photo Library",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF4F46E5)
+                        )
+                    }
+                }
             }
 
             Text(
@@ -395,6 +445,8 @@ fun SpecificationFormContent(
     onPictureClick: (PictureItem, Int) -> Unit,
     modifier: Modifier = Modifier,
     isSpecNameReadOnly: Boolean = false,
+    onBrowseFilesClick: (() -> Unit)? = null,
+    onAppLibraryClick: (() -> Unit)? = null,
     testTagPrefix: String = "spec"
 ) {
     Column(
@@ -602,8 +654,11 @@ fun SpecificationFormContent(
 
             DashedDropzoneBox(
                 buttonText = "Choose pictures",
-                helperText = "Tap to select from photo library or drop files here",
+                browseFilesText = "Browse files / storage",
+                helperText = "Select from photo library, downloads, or BlueStacks files",
                 onPickClick = onPickPicturesClick,
+                onBrowseFilesClick = onBrowseFilesClick,
+                onAppLibraryClick = onAppLibraryClick,
                 testTag = "${testTagPrefix}_dropzone"
             )
 
@@ -619,6 +674,230 @@ fun SpecificationFormContent(
                             onRemoveClick = { onRemovePictureClick(spPic) },
                             size = 120.dp
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * AppPhotoLibraryDialog: Lets user select from images already saved in the app's internal storage
+ * (pictures, review_images, and existing products/specs).
+ * Solves the problem in emulators like BlueStacks where system photo picker cannot find external files.
+ */
+@Composable
+fun AppPhotoLibraryDialog(
+    onDismiss: () -> Unit,
+    onSelectPictures: (List<PictureItem>) -> Unit,
+    allowMultiple: Boolean = true
+) {
+    val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    val selectedIds = remember { mutableStateListOf<String>() }
+
+    val localImages = remember {
+        val result = mutableListOf<PictureItem>()
+        val seenNames = mutableSetOf<String>()
+
+        val dirs = listOf(
+            File(context.filesDir, "pictures"),
+            File(context.filesDir, "review_images")
+        )
+
+        dirs.forEach { dir ->
+            if (dir.exists() && dir.isDirectory) {
+                dir.listFiles()
+                    ?.filter { it.isFile && !it.name.startsWith(".") && it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp", "gif", "svg", "bmp") }
+                    ?.sortedByDescending { it.lastModified() }
+                    ?.forEach { f ->
+                        if (seenNames.add(f.name)) {
+                            result.add(
+                                PictureItem(
+                                    id = "local_${f.name}",
+                                    name = f.name,
+                                    url = f.absolutePath
+                                )
+                            )
+                        }
+                    }
+            }
+        }
+        result
+    }
+
+    val filteredImages = remember(localImages, searchQuery) {
+        if (searchQuery.isBlank()) localImages
+        else localImages.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Collections, contentDescription = null, tint = Color(0xFF4F46E5), modifier = Modifier.size(22.dp))
+                            Text("App Photo Library", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
+                        }
+                        Text(
+                            if (localImages.isNotEmpty()) "${localImages.size} photos saved in app storage"
+                            else "No images saved in app storage yet",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF64748B))
+                    }
+                }
+
+                // Search Bar
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search photos by filename...", fontSize = 13.sp) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Photos Grid
+                if (filteredImages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Icon(Icons.Default.ImageNotSupported, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(40.dp))
+                            Text(
+                                if (searchQuery.isNotBlank()) "No photos matching \"$searchQuery\""
+                                else "No photos found in app library yet.\nUse 'Browse files' to pick images from Downloads or BlueStacks storage.",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                        columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 100.dp),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filteredImages.size) { idx ->
+                            val pic = filteredImages[idx]
+                            val isSelected = selectedIds.contains(pic.id)
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(0xFFF8FAFC))
+                                    .border(
+                                        width = if (isSelected) 2.5.dp else 1.dp,
+                                        color = if (isSelected) Color(0xFF4F46E5) else Color(0xFFCBD5E1),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        if (allowMultiple) {
+                                            if (isSelected) selectedIds.remove(pic.id)
+                                            else selectedIds.add(pic.id)
+                                        } else {
+                                            onSelectPictures(listOf(pic))
+                                            onDismiss()
+                                        }
+                                    }
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = resolveImageModel(context, pic.url, preferredName = pic.name),
+                                    contentDescription = pic.name,
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                if (allowMultiple && isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFF4F46E5),
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .align(Alignment.TopEnd)
+                                    ) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp).padding(2.dp))
+                                    }
+                                }
+                                Surface(
+                                    color = Color.Black.copy(alpha = 0.65f),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .align(Alignment.BottomCenter)
+                                ) {
+                                    Text(
+                                        text = pic.name,
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF64748B))
+                    }
+                    if (allowMultiple) {
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val chosen = filteredImages.filter { it.id in selectedIds }
+                                onSelectPictures(chosen)
+                                onDismiss()
+                            },
+                            enabled = selectedIds.isNotEmpty(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A))
+                        ) {
+                            Text("Attach ${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
