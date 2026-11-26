@@ -222,6 +222,17 @@ fun RichReviewEditor(
                 match.value
             }
         }
+        // Auto-link raw deep links and web URLs if not already inside an <a> tag or attribute
+        val rawUrlPattern = Regex("""(?<!\]\()(?<!href=["'])(?<!src=["'])\b((?:https?|upnote|marginnote\w*|obsidian|notion|craftdocs|bear|things|onenote|goodnotes|notability|logseq)://[^\s<>"'\)]+)""", RegexOption.IGNORE_CASE)
+        body = rawUrlPattern.replace(body) { match ->
+            var raw = match.value
+            var trailing = ""
+            while (raw.isNotEmpty() && (raw.endsWith(",") || raw.endsWith(".") || raw.endsWith(";") || raw.endsWith(":") || raw.endsWith(">") || raw.endsWith("!"))) {
+                trailing = raw.takeLast(1) + trailing
+                raw = raw.dropLast(1)
+            }
+            if (raw.isBlank()) match.value else "<a href=\"$raw\">$raw</a>$trailing"
+        }
         body
     }
 
@@ -255,45 +266,39 @@ fun RichReviewEditor(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            IconButton(onClick = onDismiss) {
+                            IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Color(0xFF1E293B)
+                                    tint = Color(0xFF1E293B),
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Column {
-                                Text(
-                                    text = if (initialReview != null) "Edit Review" else "Write Review",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF0F172A)
-                                )
-                                Text(
-                                    text = selectedProduct?.name ?: "No product selected",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF64748B)
-                                )
-                            }
+                            Text(
+                                text = if (initialReview != null) "Edit Review" else "Write Review",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
                         }
 
-                        // Right: Interactive Rating Stars + Save Button
+                        // Right: Compact Rating Stars + Save Button
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            // Stars
+                            // Stars (compact)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                horizontalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
                                 (1..5).forEach { star ->
                                     Icon(
@@ -301,7 +306,7 @@ fun RichReviewEditor(
                                         contentDescription = "$star stars",
                                         tint = if (star <= rating) Color(0xFFF59E0B) else Color(0xFFE2E8F0),
                                         modifier = Modifier
-                                            .size(18.dp)
+                                            .size(15.dp)
                                             .clickable { rating = star }
                                     )
                                 }
@@ -642,9 +647,9 @@ fun RichReviewEditor(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         // 1. Product Switcher Pill Button
                         Box {
@@ -654,12 +659,12 @@ fun RichReviewEditor(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
                                 modifier = Modifier
                                     .clickable { isProductDropdownOpen = true }
-                                    .height(38.dp)
+                                    .height(32.dp)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     val thumb = selectedProduct?.pictures?.firstOrNull()?.url ?: ""
                                     if (thumb.isNotBlank()) {
@@ -668,7 +673,7 @@ fun RichReviewEditor(
                                             contentDescription = null,
                                             contentScale = ContentScale.Fit,
                                             modifier = Modifier
-                                                .size(22.dp)
+                                                .size(18.dp)
                                                 .clip(RoundedCornerShape(4.dp))
                                         )
                                     } else {
@@ -676,31 +681,23 @@ fun RichReviewEditor(
                                             Icons.Default.Devices,
                                             contentDescription = null,
                                             tint = Color(0xFF4F46E5),
-                                            modifier = Modifier.size(16.dp)
+                                            modifier = Modifier.size(14.dp)
                                         )
                                     }
-                                    Column {
-                                        Text(
-                                            text = "PRODUCT",
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF4F46E5),
-                                            lineHeight = 10.sp
-                                        )
-                                        Text(
-                                            text = selectedProduct?.name ?: "Select Product",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF0F172A),
-                                            maxLines = 1,
-                                            lineHeight = 14.sp
-                                        )
-                                    }
+                                    Text(
+                                        text = selectedProduct?.name ?: "Select Product",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF0F172A),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.widthIn(max = 120.dp)
+                                    )
                                     Icon(
                                         Icons.Default.ArrowDropDown,
                                         contentDescription = "Switch product",
                                         tint = Color(0xFF64748B),
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
                                 }
                             }
@@ -728,18 +725,18 @@ fun RichReviewEditor(
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(38.dp)
+                                .height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 10.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp)
                             ) {
                                 BasicTextField(
                                     value = title,
                                     onValueChange = { title = it },
                                     singleLine = true,
                                     textStyle = androidx.compose.ui.text.TextStyle(
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color(0xFF0F172A)
                                     ),
@@ -764,8 +761,8 @@ fun RichReviewEditor(
                             color = Color(0xFFF8FAFC),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1)),
                             modifier = Modifier
-                                .width(150.dp)
-                                .height(38.dp)
+                                .width(130.dp)
+                                .height(32.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -849,6 +846,20 @@ fun RichReviewEditor(
                                             view?.destroy()
                                         } catch (_: Exception) {}
                                         return true
+                                    }
+
+                                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                        val url = request.url?.toString() ?: return false
+                                        // Allow local review image resources to load normally
+                                        if (url.startsWith("https://local.review/") || url.startsWith("http://local.review/")) return false
+                                        // Open all external links (YouTube, UpNote, MarginNote, etc.) in native apps/browser
+                                        if (UriHelper.isAppSchemeUrl(url) || url.startsWith("http://") || url.startsWith("https://")) {
+                                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                                UriHelper.openAppUri(view.context, url)
+                                            }
+                                            return true
+                                        }
+                                        return false
                                     }
 
                                     override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
@@ -973,6 +984,13 @@ fun RichReviewEditor(
                                     fun onImageClick(url: String) {
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                                             openImageInLightbox(url)
+                                        }
+                                    }
+
+                                    @JavascriptInterface
+                                    fun onLinkClick(url: String) {
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            UriHelper.openAppUri(ctx, url)
                                         }
                                     }
                                 }, "AndroidBridge")
@@ -1142,6 +1160,7 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
             }
             table {
               width: 100%;
+              max-width: 100%;
               border-collapse: collapse;
               margin: 12px 0;
               border: 1px solid #cbd5e1;
@@ -1151,7 +1170,17 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
               border: 1px solid #cbd5e1;
               padding: 8px 10px;
               text-align: left;
-              min-width: 60px;
+              min-width: 0;
+              max-width: 240px;
+              word-wrap: break-word;
+              overflow-wrap: anywhere;
+              word-break: break-word;
+              white-space: normal;
+            }
+            a {
+              color: #2563eb;
+              text-decoration: underline;
+              cursor: pointer;
             }
             th {
               background-color: #f1f5f9;
@@ -1430,6 +1459,14 @@ private fun buildEditorHtml(initialContent: String, initialZoom: Int = 85): Stri
               if (bar && bar.contains(e.target)) return;
               if (e.target && e.target.tagName !== 'IMG') {
                 deselectImage();
+              }
+              var anchor = e.target && e.target.closest ? e.target.closest('a') : null;
+              if (anchor) {
+                var href = anchor.getAttribute('href');
+                if (href && window.AndroidBridge && window.AndroidBridge.onLinkClick) {
+                  e.preventDefault();
+                  window.AndroidBridge.onLinkClick(href);
+                }
               }
             });
 

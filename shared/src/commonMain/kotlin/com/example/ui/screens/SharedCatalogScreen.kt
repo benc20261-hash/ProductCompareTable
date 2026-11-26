@@ -267,7 +267,7 @@ private fun CatalogListPane(
     onProductClick: (ProductItem) -> Unit
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 220.dp),
+        columns = GridCells.Adaptive(minSize = 260.dp),
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 12.dp,
@@ -467,9 +467,9 @@ private fun CatalogProductCard(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFF8FAFC) else Color.White),
         border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) Color(0xFF4F46E5) else Color(0xFFE2E8F0)),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth().height(370.dp).clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Header: Brand badge + Compare button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -539,12 +539,19 @@ private fun CatalogProductCard(
             }
 
             // Product title
-            Text(product.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            Text(
+                product.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF0F172A),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             // Spec preview block (top 2 specs)
             if (prodSpecs.isNotEmpty()) {
                 Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFF8FAFC), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         prodSpecs.take(2).forEach { spec ->
                             val plainDetails = sharedHtmlToPlainText(spec.details)
                             val unitText = spec.unit
@@ -554,7 +561,7 @@ private fun CatalogProductCard(
                             if (isLong) {
                                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(spec.specName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B))
+                                        Text(spec.specName, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF64748B), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         if (!unitText.isNullOrBlank()) {
                                             Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFEEF2FF)) {
                                                 Text(unitText, fontSize = 10.sp, color = Color(0xFF4F46E5),
@@ -562,7 +569,7 @@ private fun CatalogProductCard(
                                             }
                                         }
                                     }
-                                    Text(plainDetails, fontSize = 12.sp, color = Color(0xFF0F172A), lineHeight = 17.sp)
+                                    Text(plainDetails, fontSize = 11.5.sp, color = Color(0xFF0F172A), lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                             } else {
                                 Row(
@@ -570,9 +577,9 @@ private fun CatalogProductCard(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(spec.specName, fontSize = 12.sp, color = Color(0xFF64748B), modifier = Modifier.padding(end = 8.dp))
+                                    Text(spec.specName, fontSize = 11.5.sp, color = Color(0xFF64748B), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        Text(plainDetails, fontSize = 12.sp, color = Color(0xFF0F172A))
+                                        Text(plainDetails, fontSize = 11.5.sp, color = Color(0xFF0F172A), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         if (!unitText.isNullOrBlank()) {
                                             Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFFEEF2FF)) {
                                                 Text(unitText, fontSize = 10.sp, color = Color(0xFF4F46E5),
@@ -587,21 +594,23 @@ private fun CatalogProductCard(
                 }
             }
 
+            Spacer(Modifier.weight(1f))
+
             // Card footer: reviews · specs + Details >
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ChatBubbleOutline, null, tint = Color(0xFF64748B), modifier = Modifier.size(13.dp))
-                    Text("${prodReviews.size} reviews", fontSize = 11.sp, color = Color(0xFF64748B))
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.ChatBubbleOutline, null, tint = Color(0xFF64748B), modifier = Modifier.size(12.dp))
+                    Text("${prodReviews.size} reviews", fontSize = 11.sp, color = Color(0xFF64748B), maxLines = 1, softWrap = false)
                     Text("•", fontSize = 11.sp, color = Color(0xFFCBD5E1))
-                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null, tint = Color(0xFF64748B), modifier = Modifier.size(13.dp))
-                    Text("${prodSpecs.size} specs", fontSize = 11.sp, color = Color(0xFF64748B))
+                    Icon(Icons.AutoMirrored.Filled.FormatListBulleted, null, tint = Color(0xFF64748B), modifier = Modifier.size(12.dp))
+                    Text("${prodSpecs.size} specs", fontSize = 11.sp, color = Color(0xFF64748B), maxLines = 1, softWrap = false)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onClick)) {
-                    Text("Details", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF4F46E5))
+                    Text("Details", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF4F46E5), maxLines = 1, softWrap = false)
                     Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF4F46E5), modifier = Modifier.size(16.dp))
                 }
             }
@@ -749,7 +758,7 @@ private enum class WsFilterType { TAG, BRAND, PRODUCT }
 private data class WsFilterOption(val label: String, val type: WsFilterType)
 
 @Composable
-private fun SharedTagBrandProductFilter(
+internal fun SharedTagBrandProductFilter(
     tags: List<String>,
     brands: List<String>,
     productNames: List<String>,

@@ -3,9 +3,11 @@ package com.example.ui
 import com.example.data.BackupPayload
 import com.example.data.CrossPlatformBackupManager
 import com.example.data.CrossPlatformProductRepository
+import com.example.model.PictureItem
 import com.example.model.ProductItem
 import com.example.model.ReviewItem
 import com.example.model.SpecificationItem
+import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -61,10 +63,14 @@ class SharedViewModel(
         val current = _compareIds.value.toMutableList()
         if (current.contains(productId)) {
             current.remove(productId)
-        } else if (current.size < 4) {
+        } else if (current.size < 5) {
             current.add(productId)
         }
         _compareIds.value = current
+    }
+
+    fun setCompareIds(ids: List<String>) {
+        _compareIds.value = ids.distinct().take(5)
     }
 
     fun clearCompare() { _compareIds.value = emptyList() }
@@ -128,6 +134,169 @@ class SharedViewModel(
         scope.launch { repository.deleteReview(reviewId) }
     }
 
+    // ----------------------- Smart Create / Inline Matrix -----------------------
+
+    fun createAndCompare(
+        name: String,
+        brand: String,
+        orderedSpecNames: List<String>,
+        newProductId: String
+    ) {
+        scope.launch {
+            val allSpecs = repository.specifications.value
+            val newProduct = ProductItem(
+                id = newProductId,
+                name = name.trim(),
+                brand = brand.trim().ifBlank { "Generic" },
+                tags = listOf("Smart Create"),
+                overview = "Created with ${orderedSpecNames.size} specifications extracted from comparison matrix.",
+                pictures = emptyList()
+            )
+            repository.insertProduct(newProduct)
+
+            orderedSpecNames.forEachIndexed { idx, specName ->
+                val existingRef = allSpecs.find { s ->
+                    s.specName.trim().equals(specName.trim(), ignoreCase = true) &&
+                        (!s.unit.isNullOrBlank() || s.isNumeric != null)
+                }
+                val blankSpec = SpecificationItem(
+                    id = "spec_${newProductId}_${idx}_${Random.nextInt(1000, 9999)}",
+                    productId = newProductId,
+                    productTitle = newProduct.name,
+                    specName = specName,
+                    details = "",
+                    unit = existingRef?.unit?.trim()?.ifBlank { null },
+                    orderIndex = idx + 1,
+                    isNumeric = existingRef?.isNumeric
+                )
+                repository.insertSpecification(blankSpec)
+            }
+
+            val updatedCompare = (_compareIds.value + newProductId).distinct().take(5)
+            _compareIds.value = updatedCompare
+            showSnackbar("Created '${newProduct.name}' with ${orderedSpecNames.size} specifications")
+        }
+    }
+
+    fun addSpecificationInline(
+        productId: String,
+        productTitle: String,
+        specName: String,
+        details: String,
+        unit: String?
+    ) {
+        scope.launch {
+            val existing = repository.specifications.value.find {
+                it.productId == productId && it.specName.equals(specName.trim(), ignoreCase = true)
+            }
+            if (existing != null) {
+                repository.insertSpecification(
+                    existing.copy(
+                        details = details,
+                        unit = unit ?: existing.unit
+                    )
+                )
+            } else {
+                val maxOrder = repository.specifications.value
+                    .filter { it.productId == productId }
+                    .maxOfOrNull { it.effectiveOrder } ?: 0
+                repository.insertSpecification(
+                    SpecificationItem(
+                        id = "spec_${Random.nextLong(100000000, 999999999)}",
+                        productId = productId,
+                        productTitle = productTitle,
+                        specName = specName.trim(),
+                        details = details,
+                        unit = unit?.ifBlank { null },
+                        orderIndex = maxOrder + 1
+                    )
+                )
+            }
+            showSnackbar("Added '$specName' to $productTitle")
+        }
+    }
+
+    fun updateInlineSpec(
+        productId: String,
+        productTitle: String,
+        specName: String,
+        details: String,
+        pictures: List<PictureItem>,
+        unit: String?,
+        isNumeric: Boolean?
+    ) {
+        scope.launch {
+            val existing = repository.specifications.value.find {
+                (it.productId == productId || it.productTitle == productTitle) &&
+                    it.specName.equals(specName.trim(), ignoreCase = true)
+            }
+            if (existing != null) {
+                repository.insertSpecification(
+                    existing.copy(
+                        specName = specName.trim(),
+                        details = details,
+                        pictures = pictures,
+                        unit = unit?.ifBlank { null },
+                        isNumeric = isNumeric
+                    )
+                )
+            } else {
+                val maxOrder = repository.specifications.value
+                    .filter { it.productId == productId }
+                    .maxOfOrNull { it.effectiveOrder } ?: 0
+                repository.insertSpecification(
+                    SpecificationItem(
+                        id = "spec_${Random.nextLong(100000000, 999999999)}",
+                        productId = productId,
+                        productTitle = productTitle,
+                        specName = specName.trim(),
+                        details = details,
+                        unit = unit?.ifBlank { null },
+                        orderIndex = maxOrder + 1,
+                        pictures = pictures,
+                        isNumeric = isNumeric
+                    )
+                )
+            }
+            showSnackbar("Saved '$specName'")
+        }
+    }
+
+    fun deleteSpecInline(productId: String, specName: String) {
+        scope.launch {
+            val matches = repository.specifications.value.filter {
+                it.productId == productId && it.specName.equals(specName.trim(), ignoreCase = true)
+            }
+            matches.forEach { repository.deleteSpecification(it.id) }
+            showSnackbar("Removed '$specName'")
+        }
+    }
+
+    fun updateProductBrand(productId: String, brand: String) {
+        scope.launch {
+            val prod = repository.products.value.find { it.id == productId } ?: return@launch
+            repository.insertProduct(prod.copy(brand = brand.trim()))
+            showSnackbar("Updated brand for '${prod.name}'")
+        }
+    }
+
+    fun updateProductTags(productId: String, tags: List<String>) {
+        scope.launch {
+            val prod = repository.products.value.find { it.id == productId } ?: return@launch
+            repository.insertProduct(prod.copy(tags = tags.map { it.trim() }.filter { it.isNotBlank() }.distinct()))
+            showSnackbar("Updated tags for '${prod.name}'")
+        }
+    }
+
+    fun updateSpecsOrder(productId: String, orderedSpecs: List<SpecificationItem>) {
+        scope.launch {
+            orderedSpecs.forEachIndexed { index, spec ->
+                repository.insertSpecification(spec.copy(orderIndex = index + 1, order = index + 1))
+            }
+            showSnackbar("Updated specification order")
+        }
+    }
+
     // ----------------------- Backup -----------------------
 
     fun importFromBytes(bytes: ByteArray, fileName: String) {
@@ -155,7 +324,35 @@ class SharedViewModel(
         )
 
     fun exportToZipBytes(): ByteArray? =
-        createZipWithDatabaseJson(exportToJsonString())
+        CrossPlatformBackupManager.exportToFullZipBytes(
+            products = products.value,
+            specifications = specifications.value,
+            reviews = reviews.value
+        ) ?: createZipWithDatabaseJson(exportToJsonString())
+
+    fun clearAllData() {
+        scope.launch {
+            _isLoading.value = true
+            repository.importPayload(BackupPayload())
+            _compareIds.value = emptyList()
+            showSnackbar("Cleared all catalog data")
+            _isLoading.value = false
+        }
+    }
+
+    fun freeUpStorage() {
+        scope.launch {
+            val removed = CrossPlatformBackupManager.freeUpOrphanImages(
+                products = products.value,
+                specifications = specifications.value,
+                reviews = reviews.value
+            )
+            showSnackbar(
+                if (removed > 0) "Removed $removed unused image file(s)"
+                else "Storage is already clean — no orphan images found"
+            )
+        }
+    }
 
     fun resetToSeedData() {
         scope.launch {

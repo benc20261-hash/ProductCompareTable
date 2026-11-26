@@ -3,6 +3,10 @@ package com.example.data
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.InflaterInputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 actual fun platformInflate(data: ByteArray): String? = try {
     val inflater = InflaterInputStream(ByteArrayInputStream(data), java.util.zip.Inflater(true))
@@ -21,49 +25,63 @@ actual fun platformInflate(data: ByteArray): String? = try {
 }
 
 actual fun extractDatabaseJsonFromZipBytes(bytes: ByteArray): String? {
-    try {
-        java.util.zip.ZipInputStream(ByteArrayInputStream(bytes)).use { zis ->
+    val entries = extractZipEntries(bytes)
+    entries.entries.firstOrNull { (name, _) ->
+        val lower = name.lowercase()
+        (lower == "database.json" || lower.endsWith("/database.json")) && !lower.contains("__macosx")
+    }?.let { return it.value.decodeToString() }
+
+    return runCatching {
+        val text = bytes.decodeToString()
+        if (text.trimStart().startsWith("{")) text else null
+    }.getOrNull()
+}
+
+actual fun extractZipEntries(bytes: ByteArray): Map<String, ByteArray> {
+    val result = linkedMapOf<String, ByteArray>()
+    val ok = runCatching {
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
                 val name = entry.name
-                val nameLower = name.lowercase()
-                if ((nameLower == "database.json" || nameLower.endsWith("/database.json")) && !nameLower.contains("__MACOSX")) {
-                    val text = zis.bufferedReader(Charsets.UTF_8).readText()
-                    zis.closeEntry()
-                    if (text.isNotBlank()) return text
+                if (!entry.isDirectory && !name.contains("__MACOSX") && !name.substringAfterLast('/').startsWith("._")) {
+                    result[name] = zis.readBytes()
                 }
                 zis.closeEntry()
                 entry = zis.nextEntry
             }
         }
-    } catch (_: Exception) {}
+        result.isNotEmpty()
+    }.getOrDefault(false)
 
-    try {
+    if (ok) return result
+
+    runCatching {
         val tempFile = java.io.File.createTempFile("backup_extract", ".zip")
         tempFile.writeBytes(bytes)
-        java.util.zip.ZipFile(tempFile).use { zip ->
+        ZipFile(tempFile).use { zip ->
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
                 val name = entry.name
-                val nameLower = name.lowercase()
-                if ((nameLower == "database.json" || nameLower.endsWith("/database.json")) && !nameLower.contains("__MACOSX")) {
-                    val text = zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).use { it.readText() }
-                    tempFile.delete()
-                    if (text.isNotBlank()) return text
+                if (!entry.isDirectory && !name.contains("__MACOSX") && !name.substringAfterLast('/').startsWith("._")) {
+                    result[name] = zip.getInputStream(entry).use { it.readBytes() }
                 }
             }
         }
         tempFile.delete()
-    } catch (_: Exception) {}
-
-    try {
-        val text = bytes.decodeToString()
-        if (text.trimStart().startsWith("{")) {
-            return text
-        }
-    } catch (_: Exception) {}
-
-    return null
+    }
+    return result
 }
 
+actual fun createZipFromEntries(entries: Map<String, ByteArray>): ByteArray? = runCatching {
+    val baos = ByteArrayOutputStream()
+    ZipOutputStream(baos).use { zos ->
+        entries.forEach { (name, data) ->
+            zos.putNextEntry(ZipEntry(name))
+            zos.write(data)
+            zos.closeEntry()
+        }
+    }
+    baos.toByteArray()
+}.getOrNull()

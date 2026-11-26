@@ -23,7 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -167,6 +169,7 @@ fun parseSharedRichTextToAnnotatedString(
     if (trimmedPlain.isEmpty()) return AnnotatedString("")
     return buildAnnotatedString {
         append(trimmedPlain)
+        val linkedRanges = mutableListOf<IntRange>()
         for (span in spans) {
             val s = span.start.coerceIn(0, trimmedPlain.length)
             val e = span.end.coerceIn(0, trimmedPlain.length)
@@ -176,11 +179,51 @@ fun parseSharedRichTextToAnnotatedString(
             if (span.isUnderline) addStyle(SpanStyle(textDecoration = TextDecoration.Underline), s, e)
             if (span.isStrike) addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), s, e)
             if (!span.url.isNullOrBlank()) {
-                addStyle(
-                    SpanStyle(color = linkColor, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline),
+                addLink(
+                    LinkAnnotation.Url(
+                        url = span.url,
+                        styles = TextLinkStyles(
+                            style = SpanStyle(
+                                color = linkColor,
+                                fontWeight = FontWeight.SemiBold,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        )
+                    ),
                     s, e
                 )
                 addStringAnnotation(tag = "URL", annotation = span.url, start = s, end = e)
+                linkedRanges.add(s until e)
+            }
+        }
+        // Auto-link raw URLs (YouTube, web, UpNote, MarginNote, Obsidian, Notion, etc.)
+        val rawUrlRegex = Regex(
+            """\b((?:https?|upnote|marginnote\w*|obsidian|notion|craftdocs|bear|things|onenote|goodnotes|notability|logseq)://[^\s<>"'\)]+)""",
+            RegexOption.IGNORE_CASE
+        )
+        for (match in rawUrlRegex.findAll(trimmedPlain)) {
+            var s = match.range.first
+            var e = match.range.last + 1
+            var raw = match.value
+            while (raw.isNotEmpty() && (raw.endsWith(",") || raw.endsWith(".") || raw.endsWith(";") || raw.endsWith(":") || raw.endsWith(">") || raw.endsWith("!"))) {
+                raw = raw.dropLast(1)
+                e--
+            }
+            if (s < e && linkedRanges.none { r -> s < r.last + 1 && e > r.first }) {
+                addLink(
+                    LinkAnnotation.Url(
+                        url = raw,
+                        styles = TextLinkStyles(
+                            style = SpanStyle(
+                                color = linkColor,
+                                fontWeight = FontWeight.SemiBold,
+                                textDecoration = TextDecoration.Underline
+                            )
+                        )
+                    ),
+                    s, e
+                )
+                addStringAnnotation(tag = "URL", annotation = raw, start = s, end = e)
             }
         }
     }

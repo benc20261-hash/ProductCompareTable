@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -12,9 +13,10 @@ import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +37,8 @@ fun SharedDesktopNavbar(
     compareCount: Int,
     reviewCount: Int,
     onAddProductClick: () -> Unit,
+    fontScalePercent: Int = 100,
+    onFontScaleChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -166,7 +170,7 @@ fun SharedDesktopNavbar(
                                     modifier = Modifier.size(if (isNarrow) 13.dp else 15.dp)
                                 )
                                 Text(
-                                    "Smart Add",
+                                    "Smart Create",
                                     fontSize = if (isNarrow) 11.sp else 12.sp,
                                     fontWeight = if (isSmartAdd) FontWeight.Bold else FontWeight.SemiBold,
                                     color = if (isSmartAdd) Color.White else Color(0xFF92400E)
@@ -196,6 +200,76 @@ fun SharedDesktopNavbar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(if (isNarrow) 4.dp else 8.dp)
                 ) {
+                    // Global Font Size Stepper [- 100% +]
+                    var showFontMenu by remember { mutableStateOf(false) }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFF1F5F9),
+                        border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                        modifier = Modifier.height(if (isNarrow) 32.dp else 36.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(1.dp),
+                            modifier = Modifier.padding(horizontal = 2.dp)
+                        ) {
+                            IconButton(
+                                onClick = { onFontScaleChange((fontScalePercent - 5).coerceAtLeast(70)) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Remove,
+                                    contentDescription = "Font size down",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = Color(0xFF334155)
+                                )
+                            }
+                            Box {
+                                Text(
+                                    text = "$fontScalePercent%",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E293B),
+                                    modifier = Modifier
+                                        .clickable { showFontMenu = true }
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                )
+                                DropdownMenu(
+                                    expanded = showFontMenu,
+                                    onDismissRequest = { showFontMenu = false }
+                                ) {
+                                    listOf(80, 90, 100, 112, 120, 130, 150).forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = if (preset == 100) "$preset% (Default)" else "$preset%",
+                                                    fontWeight = if (preset == fontScalePercent) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 12.sp,
+                                                    color = if (preset == fontScalePercent) Color(0xFF4F46E5) else Color(0xFF1E293B)
+                                                )
+                                            },
+                                            onClick = {
+                                                onFontScaleChange(preset)
+                                                showFontMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(
+                                onClick = { onFontScaleChange((fontScalePercent + 5).coerceAtMost(160)) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Font size up",
+                                    modifier = Modifier.size(13.dp),
+                                    tint = Color(0xFF334155)
+                                )
+                            }
+                        }
+                    }
+
                     Button(
                         onClick = onAddProductClick,
                         shape = RoundedCornerShape(8.dp),
