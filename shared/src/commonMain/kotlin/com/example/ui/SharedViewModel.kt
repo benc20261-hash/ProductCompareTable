@@ -79,6 +79,23 @@ class SharedViewModel(
         }
     }
 
+    /**
+     * Saves the full product workspace: upserts the product, replaces all its specs
+     * (deletes removed ones and upserts the current list with updated orderIndex).
+     */
+    fun saveProductWorkspace(product: ProductItem, newSpecs: List<SpecificationItem>, isNew: Boolean) {
+        scope.launch {
+            repository.insertProduct(product)
+            if (!isNew) {
+                val existingSpecIds = repository.specifications.value
+                    .filter { it.productId == product.id }.map { it.id }
+                existingSpecIds.forEach { repository.deleteSpecification(it) }
+            }
+            newSpecs.forEach { repository.insertSpecification(it) }
+            showSnackbar(if (isNew) "'${product.name}' published" else "'${product.name}' saved")
+        }
+    }
+
     fun updateProduct(product: ProductItem) {
         scope.launch { repository.insertProduct(product) }
     }

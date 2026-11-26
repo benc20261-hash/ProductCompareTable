@@ -31,6 +31,10 @@ import com.example.model.ProductItem
 import com.example.model.ReviewItem
 import com.example.model.SpecificationItem
 import com.example.model.resolveSharedImageModel
+import com.example.model.PictureItem
+import com.example.ui.components.SharedFullScreenPhotoLightbox
+import com.example.ui.components.parseSharedRichTextToAnnotatedString
+import com.example.ui.components.sharedHtmlToPlainText
 
 private val COLOR_DIFF_BG = Color(0xFFFEFCE8)
 private val COLOR_DIFF_BORDER = Color(0xFFFDE047)
@@ -62,6 +66,18 @@ fun SharedCompareScreen(
     // Product picker state (slot index being filled)
     var pickerSlot by remember { mutableStateOf<Int?>(null) }
     var pickerSearch by remember { mutableStateOf("") }
+
+    // Lightbox state for spec/review images
+    var lightboxImages by remember { mutableStateOf<List<PictureItem>>(emptyList()) }
+    var lightboxIndex by remember { mutableStateOf(0) }
+
+    if (lightboxImages.isNotEmpty()) {
+        SharedFullScreenPhotoLightbox(
+            images = lightboxImages,
+            initialIndex = lightboxIndex,
+            onDismiss = { lightboxImages = emptyList() }
+        )
+    }
 
     // Slots: always show 2 by default, up to 4
     val slotCount = maxOf(2, compareIds.size)
@@ -99,8 +115,9 @@ fun SharedCompareScreen(
     val diffCount = remember(activeProducts, allSpecNames, specifications) {
         allSpecNames.count { specName ->
             val vals = activeProducts.map { p ->
-                specifications.find { it.productId == p.id && it.specName == specName }
+                val raw = specifications.find { it.productId == p.id && it.specName == specName }
                     ?.details?.trim() ?: ""
+                sharedHtmlToPlainText(raw)
             }.filter { it.isNotEmpty() }
             vals.distinct().size > 1
         }
@@ -160,13 +177,17 @@ fun SharedCompareScreen(
             val specPerProduct = activeProducts.map { p ->
                 p to specifications.find { it.productId == p.id && it.specName == specName }
             }
-            val rawValues = specPerProduct.mapNotNull { (_, s) -> s?.details?.trim()?.takeIf { it.isNotEmpty() } }
+            val rawValues = specPerProduct.mapNotNull { (_, s) -> sharedHtmlToPlainText(s?.details?.trim() ?: "").takeIf { it.isNotEmpty() } }
             val isDifferent = rawValues.distinct().size > 1
 
             SpecComparisonCard(
                 specName = specName,
                 specPerProduct = specPerProduct,
                 isDifferent = isDifferent,
+                onImageClick = { pictures, index ->
+                    lightboxImages = pictures
+                    lightboxIndex = index
+                },
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
         }
@@ -380,6 +401,7 @@ private fun SpecComparisonCard(
     specName: String,
     specPerProduct: List<Pair<ProductItem, SpecificationItem?>>,
     isDifferent: Boolean,
+    onImageClick: (List<PictureItem>, Int) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (isDifferent) COLOR_DIFF_BG else COLOR_SAME_BG
@@ -436,27 +458,35 @@ private fun SpecComparisonCard(
                     Spacer(Modifier.height(3.dp))
 
                     if (spec != null) {
-                        // Spec value
+                        // Spec value — rendered as rich text (supports bold/italic/underline/links from WYSIWYG)
+                        val richText = parseSharedRichTextToAnnotatedString(
+                            spec.details,
+                            baseColor = Color(0xFF1E293B),
+                            linkColor = Color(0xFF4F46E5)
+                        )
+                        val unitSuffix = if (!spec.unit.isNullOrBlank()) "  ${spec.unit}" else ""
                         Text(
-                            buildString {
-                                append(spec.details)
-                                if (!spec.unit.isNullOrBlank()) append("  ${spec.unit}")
-                            },
+                            text = if (unitSuffix.isNotEmpty()) {
+                                androidx.compose.ui.text.buildAnnotatedString {
+                                    append(richText)
+                                    append(unitSuffix)
+                                }
+                            } else richText,
                             fontSize = 14.sp,
-                            color = Color(0xFF1E293B),
                             fontWeight = FontWeight.Medium
                         )
 
-                        // Spec pictures
+                        // Spec pictures — clickable to open lightbox
                         if (spec.pictures.isNotEmpty()) {
                             Spacer(Modifier.height(6.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(spec.pictures) { pic ->
+                                itemsIndexed(spec.pictures) { picIdx, pic ->
                                     Box(
                                         modifier = Modifier
                                             .size(80.dp)
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(Color(0xFFF8FAFC))
+                                            .clickable { onImageClick(spec.pictures, picIdx) }
                                     ) {
                                         AsyncImage(
                                             model = resolveSharedImageModel(pic.url, pic.name),

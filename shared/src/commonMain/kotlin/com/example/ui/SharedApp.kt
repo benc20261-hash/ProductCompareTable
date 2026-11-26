@@ -41,6 +41,8 @@ fun ProductCompareSharedApp() {
 
     var activeTab by remember { mutableStateOf(SharedNavTab.CATALOG) }
     var selectedProductForWorkspace by remember { mutableStateOf<ProductItem?>(null) }
+    var isCreatingNewProduct by remember { mutableStateOf(false) }
+    var reviewPreselectedProductId by remember { mutableStateOf<String?>(null) }
 
     // Forward ViewModel snackbar messages to the host
     LaunchedEffect(snackbarMessage) {
@@ -89,6 +91,7 @@ fun ProductCompareSharedApp() {
                     activeTab = activeTab,
                     onTabSelected = {
                         selectedProductForWorkspace = null
+                        reviewPreselectedProductId = null
                         activeTab = it
                     },
                     productCount = products.size,
@@ -96,32 +99,50 @@ fun ProductCompareSharedApp() {
                     reviewCount = reviews.size,
                     onAddProductClick = {
                         selectedProductForWorkspace = null
-                        activeTab = SharedNavTab.SMART_ADD
+                        isCreatingNewProduct = true
                     }
                 )
             },
             containerColor = Color(0xFFF1F5F9)
         ) { paddingValues ->
 
-            // Product workspace detail panel (when a product is clicked)
-            if (selectedProductForWorkspace != null) {
-                val product = selectedProductForWorkspace!!
-                val liveProduct = products.find { it.id == product.id } ?: product
+            // Product workspace: either creating a new product OR editing an existing one
+            if (isCreatingNewProduct || selectedProductForWorkspace != null) {
+                val existingProduct = selectedProductForWorkspace
+                val liveProduct = if (existingProduct != null) {
+                    products.find { it.id == existingProduct.id } ?: existingProduct
+                } else null
+                val existingSpecs = if (liveProduct != null) {
+                    specifications.filter { it.productId == liveProduct.id }.sortedBy { it.effectiveOrder }
+                } else emptyList()
+
+                val allTags = products.flatMap { it.tags }.distinct().sorted()
+                val allBrands = products.map { it.brand }.filter { it.isNotBlank() }.distinct().sorted()
+                val allPictures = (products.flatMap { it.pictures } +
+                        specifications.flatMap { it.pictures }).distinctBy { it.name.ifBlank { it.url } }
+
                 SharedProductWorkspaceScreen(
-                    product = liveProduct,
-                    specs = specifications.filter { it.productId == liveProduct.id }
-                        .sortedBy { it.effectiveOrder },
-                    reviews = reviews.filter { it.productIds.contains(liveProduct.id) },
-                    inCompare = compareIds.contains(liveProduct.id),
-                    onToggleCompare = { viewModel.toggleCompare(liveProduct.id) },
-                    onSaveProduct = { viewModel.updateProduct(it) },
-                    onSaveSpec = { viewModel.updateSpecification(it) },
-                    onDeleteSpec = { viewModel.deleteSpecification(it) },
-                    onDeleteProduct = {
-                        viewModel.deleteProduct(liveProduct.id)
+                    initialProduct = liveProduct,
+                    allAvailableTags = allTags,
+                    allAvailableBrands = allBrands,
+                    allAvailablePictures = allPictures,
+                    initialSpecifications = existingSpecs,
+                    onSaveProduct = { product, specs, isNew ->
+                        viewModel.saveProductWorkspace(product, specs, isNew)
+                        isCreatingNewProduct = false
+                        selectedProductForWorkspace = null
+                        activeTab = SharedNavTab.CATALOG
+                    },
+                    onDeleteProduct = if (liveProduct != null) {{ id ->
+                        viewModel.deleteProduct(id)
+                        isCreatingNewProduct = false
+                        selectedProductForWorkspace = null
+                        activeTab = SharedNavTab.CATALOG
+                    }} else null,
+                    onNavigateBack = {
+                        isCreatingNewProduct = false
                         selectedProductForWorkspace = null
                     },
-                    onClose = { selectedProductForWorkspace = null },
                     modifier = Modifier.fillMaxSize().padding(paddingValues)
                 )
                 return@Scaffold
@@ -132,10 +153,19 @@ fun ProductCompareSharedApp() {
                     SharedCatalogScreen(
                         products = products,
                         specifications = specifications,
+                        reviews = reviews,
                         compareIds = compareIds,
                         onToggleCompare = { viewModel.toggleCompare(it) },
-                        onAddProductClick = { activeTab = SharedNavTab.SMART_ADD },
-                        onProductClick = { selectedProductForWorkspace = it },
+                        onAddProductClick = {
+                            isCreatingNewProduct = true
+                            selectedProductForWorkspace = null
+                        },
+                        onEditProduct = { selectedProductForWorkspace = it; isCreatingNewProduct = false },
+                        onClearCompare = { viewModel.clearCompare() },
+                        onSmartAddClick = { activeTab = SharedNavTab.SMART_ADD },
+                        onDeleteProduct = { viewModel.deleteProduct(it) },
+                        onAddReview = { p -> reviewPreselectedProductId = p.id; activeTab = SharedNavTab.REVIEWS },
+                        onNavigateToCompare = { activeTab = SharedNavTab.COMPARE },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues)
@@ -150,7 +180,7 @@ fun ProductCompareSharedApp() {
                         compareIds = compareIds,
                         onToggleProduct = { viewModel.toggleCompare(it) },
                         onClearAll = { viewModel.clearCompare() },
-                        onEditProduct = { selectedProductForWorkspace = it },
+                        onEditProduct = { selectedProductForWorkspace = it; isCreatingNewProduct = false },
                         onAddProductClick = { activeTab = SharedNavTab.CATALOG },
                         onNavigateToReviews = { activeTab = SharedNavTab.REVIEWS },
                         modifier = Modifier
@@ -178,10 +208,13 @@ fun ProductCompareSharedApp() {
                         products = products,
                         onAddReview = { viewModel.addReview(it) },
                         onDeleteReview = { viewModel.deleteReview(it) },
+                        preselectedProductId = reviewPreselectedProductId,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues)
                     )
+                    // Clear preselection after composition so it doesn't re-trigger
+                    LaunchedEffect(Unit) { reviewPreselectedProductId = null }
                 }
 
                 SharedNavTab.DATA_BACKUP -> {
