@@ -836,8 +836,9 @@ fun ProductDetailPaneContent(
                                                         fontSize = 13.sp,
                                                         lineHeight = 18.sp
                                                     )
-                                                    if (!spec.unit.isNullOrBlank()) {
-                                                        SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                    val specUnit = spec.unit
+                                                    if (!specUnit.isNullOrBlank()) {
+                                                        SpecUnitBadge(unit = specUnit, details = spec.details)
                                                     }
 
                                                     // Thumbnail pictures if present

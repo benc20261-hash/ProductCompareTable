@@ -48,3 +48,4 @@ data class UserEntity(
     val email: String,
     val role: String
 )
+

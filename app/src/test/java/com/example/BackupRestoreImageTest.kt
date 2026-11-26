@@ -157,4 +157,19 @@ class BackupRestoreImageTest {
         val modelFromId = resolveImageModel(context, "", preferredName = "att_import_test1")
         assertTrue("resolveImageModel should resolve by ID: $modelFromId", modelFromId is File && modelFromId.exists())
     }
+
+    @Test
+    fun testRealAndroidBackupZipImport() {
+        val zipFile = File("/Users/chaiyihhein/Desktop/asset2/android50ProductCompare_Backup_2026-11-22_21-55 2.zip")
+        if (zipFile.exists()) {
+            val bytes = zipFile.readBytes()
+            val result = com.example.data.CrossPlatformBackupManager.importFromBytes(bytes, zipFile.name)
+            assertTrue("Should successfully parse real Android backup zip: ${result.exceptionOrNull()?.message}", result.isSuccess)
+            val payload = result.getOrThrow()
+            assertTrue("Should contain products", payload.products.isNotEmpty())
+            assertTrue("Should contain specifications", payload.specifications.isNotEmpty())
+            assertTrue("Should contain reviews", payload.reviews.isNotEmpty())
+        }
+    }
 }
+

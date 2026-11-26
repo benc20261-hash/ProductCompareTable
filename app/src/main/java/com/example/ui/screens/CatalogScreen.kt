@@ -643,8 +643,9 @@ private fun CatalogListPane(
                                                         fontWeight = FontWeight.SemiBold,
                                                         color = Color(0xFF64748B)
                                                     )
-                                                    if (!spec.unit.isNullOrBlank()) {
-                                                        SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                    val unitTop = spec.unit
+                                                    if (!unitTop.isNullOrBlank()) {
+                                                        SpecUnitBadge(unit = unitTop, details = spec.details)
                                                     }
                                                 }
                                                 FormattedSpecHtml(
@@ -678,8 +679,9 @@ private fun CatalogListPane(
                                                         lineHeight = 16.sp,
                                                         color = Color(0xFF0F172A)
                                                     )
-                                                    if (!spec.unit.isNullOrBlank()) {
-                                                        SpecUnitBadge(unit = spec.unit, details = spec.details)
+                                                    val unitBottom = spec.unit
+                                                    if (!unitBottom.isNullOrBlank()) {
+                                                        SpecUnitBadge(unit = unitBottom, details = spec.details)
                                                     }
                                                 }
                                             }

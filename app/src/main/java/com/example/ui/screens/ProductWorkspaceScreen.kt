@@ -1383,14 +1383,15 @@ fun ProductWorkspaceScreen(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                if (!spec.unit.isNullOrBlank()) {
+                                val unitStr = spec.unit
+                                if (!unitStr.isNullOrBlank()) {
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
                                         color = Color(0xFFF1F5F9),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
                                     ) {
                                         Text(
-                                            text = spec.unit.trim(),
+                                            text = unitStr.trim(),
                                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                             fontSize = 10.sp,
                                             fontWeight = FontWeight.Bold,

@@ -1,22 +1,78 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# ProductCompare — Kotlin Multiplatform (KMP)
 
-# Run and deploy your AI Studio app
+A cross-platform product comparison and specification analysis application built with **Kotlin Multiplatform (KMP)** and **Compose Multiplatform**, targeting:
+- **Android** (Phones & Tablets)
+- **Desktop** (Windows, macOS, Linux)
+- **iOS & iPadOS** (iPhone & iPad)
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/ba8163e4-6438-414e-9ddb-abc7644af2a3
+## Architecture Overview
 
-## Run Locally
+```
+ProductCompare/
+├── shared/                             # KMP Shared Module
+│   ├── src/commonMain/                 # Shared UI (Compose MP), Models, Business Logic
+│   │   ├── kotlin/com/example/model/   # Serializable Domain Models (ProductItem, SpecItem, etc.)
+│   │   ├── kotlin/com/example/ui/      # Shared Compose Multiplatform UI
+│   │   └── kotlin/com/example/shared/  # Expect/Actual platform definitions
+│   ├── src/androidMain/                # Android-specific platform adapters
+│   ├── src/desktopMain/                # Desktop entry point (JVM) & distribution
+│   └── src/iosMain/                    # iOS/iPad MainViewController & UIKit bridges
+├── app/                                # Android Application Module
+│   └── src/main/                       # Android Room Database, Services, Workspaces
+└── iosApp/                             # iOS / iPad SwiftUI Application
+    └── iosApp/                         # SwiftUI entry point integrating SharedApp.framework
+```
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+---
 
+## How to Build & Run on Each Platform
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+### 1. Android
+Open the project in **Android Studio** and run the `:app` configuration, or via command line:
+```bash
+./gradlew :app:assembleDebug
+./gradlew :app:installDebug
+```
+Run unit tests:
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+---
+
+### 2. Desktop (Windows, macOS, Linux)
+Run the desktop app directly:
+```bash
+./gradlew :shared:run
+```
+
+Package distribution:
+- **Executable JAR**:
+  ```bash
+  ./gradlew :shared:packageUberJarForCurrentOS
+  ```
+- **Native Installer** (`.dmg` on macOS, `.msi` on Windows, `.deb` on Linux):
+  ```bash
+  ./gradlew :shared:packageDistributionForCurrentOS
+  ```
+
+---
+
+### 3. iOS & iPadOS (iPhone / iPad)
+1. Generate the iOS frameworks:
+   ```bash
+   # For iOS Simulator (Apple Silicon or Intel):
+   ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
+   # (Optional fat binary if running on x86_64 simulator):
+   ./gradlew :shared:linkDebugFrameworkIosX64
+
+   # For physical iPhone / iPad devices:
+   ./gradlew :shared:linkDebugFrameworkIosArm64
+   ```
+2. Open the Xcode project in `iosApp/`:
+   ```bash
+   open iosApp/iosApp.xcodeproj
+   ```
+3. Select your target (e.g. Any iOS Device, connected iPhone/iPad, or Simulator) and press **⌘ + B** to build or **⌘ + R** to run.

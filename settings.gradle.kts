@@ -25,3 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "ProductCompare"
 
 include(":app")
+include(":shared")
+
