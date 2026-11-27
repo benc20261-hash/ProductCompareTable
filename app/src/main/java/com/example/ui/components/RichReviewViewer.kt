@@ -142,7 +142,6 @@ fun RichReviewViewerContent(
     val linkedProduct = remember(review, products) {
         products.find { it.id in review.productIds }
             ?: products.find { it.name in review.productTitles }
-            ?: products.firstOrNull()
     }
 
     val displayTitle = review.title.ifBlank {
@@ -215,8 +214,8 @@ fun RichReviewViewerContent(
 
     LaunchedEffect(zoomPercent) {
         try {
-            webViewInstance?.settings?.textZoom = zoomPercent
-            webViewInstance?.evaluateJavascript("if (document.body) { document.body.style.zoom = '${zoomPercent}%'; }", null)
+            webViewInstance?.settings?.textZoom = 100
+            webViewInstance?.evaluateJavascript("if (typeof setViewerZoom === 'function') { setViewerZoom($zoomPercent); }", null)
         } catch (_: Exception) {}
     }
 
@@ -500,7 +499,7 @@ fun RichReviewViewerContent(
                                 settings.setSupportZoom(true)
                                 settings.builtInZoomControls = true
                                 settings.displayZoomControls = false
-                                settings.textZoom = zoomPercent
+                                settings.textZoom = 100
                                 settings.allowFileAccess = true
                                 settings.allowContentAccess = true
                                 settings.allowFileAccessFromFileURLs = true
@@ -689,7 +688,8 @@ fun RichReviewViewerContent(
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
                                         isPageLoading = false
-                                        view?.evaluateJavascript("if (document.body) { document.body.style.zoom = '${zoomPercent}%'; }", null)
+                                        view?.settings?.textZoom = 100
+                                        view?.evaluateJavascript("if (typeof setViewerZoom === 'function') { setViewerZoom($zoomPercent); }", null)
                                     }
                                 }
 
@@ -740,8 +740,8 @@ fun RichReviewViewerContent(
                         },
                         update = { webView ->
                             try {
-                                webView.settings.textZoom = zoomPercent
-                                webView.evaluateJavascript("if (document.body) { document.body.style.zoom = '${zoomPercent}%'; }", null)
+                                webView.settings.textZoom = 100
+                                webView.evaluateJavascript("if (typeof setViewerZoom === 'function') { setViewerZoom($zoomPercent); }", null)
                                 if (webView.tag != htmlDocument) {
                                     isPageLoading = true
                                     webView.tag = htmlDocument
@@ -1016,11 +1016,12 @@ private fun buildViewerHtml(
               font-size: 13.5px;
               line-height: 1.55;
               width: 100%;
+              overflow-x: hidden;
               -webkit-overflow-scrolling: touch;
-              zoom: ${initialZoom}%;
             }
             
             .page-container {
+              zoom: ${initialZoom}%;
               padding: 10px 14px 48px 14px;
               max-width: 720px;
               margin: 0 auto;
@@ -1255,6 +1256,7 @@ private fun buildViewerHtml(
             
             table {
               width: 100%;
+              max-width: 100%;
               border-collapse: collapse;
               margin: 14px 0;
               border: 1px solid #e2e8f0;
@@ -1262,15 +1264,18 @@ private fun buildViewerHtml(
               overflow: hidden;
               font-size: 13px;
               background-color: #f8fafc;
-              display: block;
-              overflow-x: auto;
-              -webkit-overflow-scrolling: touch;
             }
             
             th, td {
               border: 1px solid #e2e8f0;
               padding: 7px 10px;
               text-align: left;
+              min-width: 0;
+              max-width: 240px;
+              word-wrap: break-word;
+              overflow-wrap: anywhere;
+              word-break: break-word;
+              white-space: normal;
             }
             
             th {
@@ -1403,6 +1408,17 @@ private fun buildViewerHtml(
           </div>
 
           <script>
+            function setViewerZoom(zoomPct) {
+              var style = document.getElementById('dynamic-viewer-zoom-style');
+              if (!style) {
+                style = document.createElement('style');
+                style.id = 'dynamic-viewer-zoom-style';
+                document.head.appendChild(style);
+              }
+              style.textContent = '.page-container { zoom: ' + zoomPct + '% !important; }';
+              if (document.body) { document.body.style.zoom = '100%'; }
+              if (document.documentElement) { document.documentElement.style.zoom = '100%'; }
+            }
             document.querySelectorAll('img').forEach(function(img) {
               img.onclick = function() {
                 if (window.AndroidBridge) {
